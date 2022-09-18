@@ -1,1 +1,1 @@
-web: gunicorn warehouse:server --timeout 300
+web: python warehouse.py
