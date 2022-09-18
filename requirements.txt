@@ -1,11 +1,5 @@
-dash==1.18.1
-dash-bootstrap-components==0.11.1
-dash-core-components==1.14.1
-dash-html-components==1.1.1
-dash-renderer==1.8.3
-dash-table==4.11.1
-gunicorn==20.0.4
-pandas
-plotly==4.1.1
-psycopg2-binary
-werkzeug==2.0.3
+Flask-Script
+flask-sqlalchemy
+psycopg2
+# psycopg2-binary
+Flask-Migrate
