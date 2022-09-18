@@ -2,20 +2,15 @@
 {% load static %}
 
 {% block content %}
-  <div class="container">
-
-
-<h2>Page View Report</h2>
-
-
-<ul>
-
-{% for location in locations %}
-    <li>{{ location.name }}</li>
-{% endfor %}
-
-</ul>
-
+<div class="container">
+  <ul>
+    {% for location, entry in productList %}
+      <h2>{{ location.name }}</h2>
+      {% for product in entry.products %}
+        <li>{{ product.name }}</li>
+      {% endfor %}
+    {% endfor %}
+  </ul>
 </div>
 
 {% endblock %}
