@@ -1,2 +1,6 @@
-.DS_Store
-static/.DS_Store
+venv
+*.pyc
+staticfiles
+.env
+db.sqlite3
+getting-started/*
