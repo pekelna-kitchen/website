@@ -1,5 +1,7 @@
-alembic
-Flask-Migrate
-Flask-Script
-Flask-SQLAlchemy
-psycopg2
+Flask
+Flask-RESTful
+gunicorn
+itsdangerous
+Jinja2
+peewee
+Werkzeug
