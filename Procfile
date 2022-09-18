@@ -1,1 +1,1 @@
-web: gunicorn search:server --timeout 300
+web: gunicorn warehouse:server --timeout 300
