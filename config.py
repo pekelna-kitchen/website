@@ -1,2 +1,1 @@
-DEBUG=True
-# SQLALCHEMY_DATABASE_URI = 'postgresql+psycopg2://test_user:@localhost/mattermost'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
