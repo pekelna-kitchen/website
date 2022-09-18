@@ -1,15 +1,16 @@
-import psycopg2, os
+import psycopg2
+import os
 
 # read database connection url from the enivron variable we just set.
 DATABASE_URL = os.environ.get('DATABASE_URL')
-con = None
+conn = None
 try:
     # create a new database connection by calling the connect() function
-    con = psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL)
 
     #  create a new cursor
     cur = conn.cursor()
-    
+
     # execute an SQL statement to get the HerokuPostgres database version
     print('PostgreSQL database version:')
     cur.execute('SELECT version()')
@@ -17,14 +18,14 @@ try:
     # display the PostgreSQL database server version
     db_version = cur.fetchone()
     print(db_version)
-       
-     # close the communication with the HerokuPostgres
+
+    # close the communication with the HerokuPostgres
     cur.close()
 except Exception as error:
     print('Cause: {}'.format(error))
 
 finally:
     # close the communication with the database server by calling the close()
-    if con is not None:
-        con.close()
+    if conn is not None:
+        conn.close()
         print('Database connection closed.')
