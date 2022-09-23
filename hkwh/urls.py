@@ -4,7 +4,7 @@ from django.contrib import admin
 
 admin.autodiscover()
 
-import hk-db.views
+import hkdb.views
 
 # To add a new path, first import the app:
 # import blog
@@ -15,6 +15,6 @@ import hk-db.views
 # Learn more here: https://docs.djangoproject.com/en/2.1/topics/http/urls/
 
 urlpatterns = [
-    path("", hk-db.views.index, name="index"),
+    path("", hkdb.views.index, name="index"),
     path("admin/", admin.site.urls),
 ]

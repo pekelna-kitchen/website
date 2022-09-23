@@ -7,17 +7,25 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
+    initial = True
+
     dependencies = [
-        ('hk-db', '0002_locations')
     ]
 
     operations = [
+        migrations.CreateModel(
+            name='Location',
+            fields=[
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('name', models.TextField(editable=True, verbose_name=b'Location')),
+            ],
+        ),
         migrations.CreateModel(
             name='Product',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.TextField(editable=True, verbose_name=b'Product')),
-                ('location', models.ForeignKey('hk-db.location', on_delete=models.CASCADE))
+                ('location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE))
             ],
         ),
     ]
