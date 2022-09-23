@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('hello', '0002_locations')
+        ('hk-db', '0002_locations')
     ]
 
     operations = [
@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.TextField(editable=True, verbose_name=b'Product')),
-                ('location', models.ForeignKey('hello.location', on_delete=models.CASCADE))
+                ('location', models.ForeignKey('hk-db.location', on_delete=models.CASCADE))
             ],
         ),
     ]
