@@ -24,8 +24,17 @@ class Migration(migrations.Migration):
             name='Product',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.TextField(editable=True, verbose_name=b'Product')),
-                ('location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE))
+                ('name', models.TextField(editable=True, verbose_name=b'Product'))
             ],
+        ),
+        migrations.CreateModel(
+            name='Instance', 
+            fields=[
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ( 'product', models.ForeignKey('hkdb.product', on_delete=models.CASCADE) ),
+                ( 'location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE) ),
+                ( 'lastModifyDate', models.DateTimeField(auto_now=True) ),
+                ( 'lastModifyAuthor', models.TextField(editable=True, verbose_name=b'Editor') ),
+            ]
         ),
     ]

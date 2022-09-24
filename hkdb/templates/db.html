@@ -4,10 +4,10 @@
 {% block content %}
 <div class="container">
   <ul>
-    {% for location, products in productList %}
+    {% for location, instances in productList %}
       <h2>{{ location.name }}</h2>
-      {% for product in products %}
-        <li>{{ product.name }}</li>
+      {% for instance in instances %}
+        <li>{{ instance.product.name }}</li>
       {% endfor %}
     {% endfor %}
   </ul>
