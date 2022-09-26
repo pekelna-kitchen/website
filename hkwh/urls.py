@@ -15,6 +15,6 @@ import hkdb.views
 # Learn more here: https://docs.djangoproject.com/en/2.1/topics/http/urls/
 
 urlpatterns = [
-    path("", hkdb.views.index, name="index"),
+    path("/", hkdb.views.index, name="index"),
     path("admin/", admin.site.urls),
 ]
