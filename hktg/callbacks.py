@@ -20,28 +20,20 @@ def get_states_id(tuple_length):
     return states_list
 
 # State definitions for top level conversation
-SELECTING_ACTION, ADDING_ACTION, REMOVING_ACTION, UPDATING_ACTION = get_states_id(4)
-# State definitions for second level conversation
-SELECTING_LOCATION, ADDING_LOCATION, REMOVING_LOCATION, SELECTING_PRODUCT, ADDING_LOCATION, REMOVING_LOCATION, =  get_states_id(2)
-# State definitions for descriptions conversation
-SELECTING_FEATURE, TYPING = get_states_id(2)
-# Meta states
-STOPPING, SHOWING = get_states_id(2)
+SELECTING_ACTION, SELECTING_LOCATION, SELECTING_PRODUCT, TYPING_AMOUNT = get_states_id(4)
 # Shortcut for ConversationHandler.END
 END = ConversationHandler.END
 
 # Different constants
 (
-    START_OVER,
-    FEATURES,
-    CURRENT_FEATURE,
-    CURRENT_LEVEL,
+    ADDING_ACTION,
+    REMOVING_ACTION,
+    UPDATING_ACTION
 ) = get_states_id(4)
 
 
 WELCOME_TEXT = "Ви можете обновити інформацію щодо складу. Щоб зупинити, просто введіть команду /stop."
 COMEBACK_TEXT = "Повертайся скоріш! Для цього використай /start"
-
 
 # Helper
 def _name_switcher(level: str) -> Tuple[str, str]:
@@ -232,39 +224,11 @@ async def ask_for_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> s
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(text=text)
 
-    return TYPING
-
-
-async def save_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Save input for feature and return to feature selection."""
-    user_data = context.user_data
-    user_data[FEATURES][user_data[CURRENT_FEATURE]] = update.message.text
-
-    user_data[START_OVER] = True
-
-    return await select_feature(update, context)
-
-
-async def end_describing(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """End gathering of features and return to parent conversation."""
-    user_data = context.user_data
-    level = user_data[CURRENT_LEVEL]
-    if not user_data.get(level):
-        user_data[level] = []
-    user_data[level].append(user_data[FEATURES])
-
-    # Print upper level menu
-    if level == SELF:
-        user_data[START_OVER] = True
-        await start(update, context)
-    else:
-        await select_level(update, context)
-
-    return END
+    return TYPING_AMOUNT
 
 
 async def stop_nested(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Completely end conversation from within nested conversation."""
-    await update.message.reply_text("Okay, bye.")
+    await update.message.reply_text(COMEBACK_TEXT)
 
     return STOPPING
