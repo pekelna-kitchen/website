@@ -68,8 +68,8 @@ NEW_LOCATION_TEXT = "І як нове місце називається?"
 NEW_PRODUCT_TEXT = "І як новий продукт називається?"
 NEW_CONTAINER_SYMB_TEXT = "І який символ у нової тари? Одне емодзі"
 NEW_CONTAINER_DESC_TEXT = "І як нова %s тара називається?"
-AMOUNT_MESSAGE = "І скільки ж стало %s з %s в %s? Тільки цифрами"
-ADD_AMOUNT_MESSAGE = "I скільки ж %s з %s зʼявилось в %s?  Тільки цифрами"
+AMOUNT_MESSAGE = "І скільки ж стало %s з %s в %s? Тільки цифрами, 0 видалить запис"
+ADD_AMOUNT_MESSAGE = "I скільки ж %s з %s зʼявилось в %s?  Тільки цифрами, 0 не внесе змін"
 SHOWING_TEXT = "🏠 Ласкаво просимо до складу!\nЯкщо я засну - зайдіть на https://hk-warehouse.herokuapp.com\nОсь що в нас є:"
 FILTERED_VIEW_TEXT = "🔍 Шукаєм %s:"
 
@@ -350,14 +350,15 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return await start(update, context)
 
     elif user_data[UserDataKey.ACTION] == Action.ADD:
-        dbwrapper.insert_value(dbwrapper.INSTANCE_TABLE, {
-            "product_id": user_data[UserDataKey.PRODUCT],
-            "location_id": user_data[UserDataKey.LOCATION],
-            "container_id": user_data[UserDataKey.CONTAINER],
-            "amount": update.message.text,
-            "date": datetime.now(),
-            "editor": update.effective_user.name,
-        })
+        if int(update.message.text) != 0:
+            dbwrapper.insert_value(dbwrapper.INSTANCE_TABLE, {
+                "product_id": user_data[UserDataKey.PRODUCT],
+                "location_id": user_data[UserDataKey.LOCATION],
+                "container_id": user_data[UserDataKey.CONTAINER],
+                "amount": update.message.text,
+                "date": datetime.now(),
+                "editor": update.effective_user.name,
+            })
         await start(update, context)
         return State.CHOOSING_ACTION
     
