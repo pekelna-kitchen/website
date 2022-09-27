@@ -1,234 +1,371 @@
 
 from typing import Any, Dict, Tuple
+from enum import Enum
+import logging
+import inspect
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ConversationHandler, ContextTypes, filters
+from telegram import (
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update
+)
+from telegram.ext import (
+    ConversationHandler,
+    ContextTypes,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters
+)
 
-# move to utils if there'll be that shit
+from . import dbwrapper
 
-def static_vars(**kwargs):
-    def decorate(func):
-        for k in kwargs:
-            setattr(func, k, kwargs[k])
-        return func
-    return decorate
 
-@static_vars(counter=0)
-def get_states_id(tuple_length):
-    states_list = map(chr, range(get_states_id.counter, get_states_id.counter + tuple_length))
-    get_states_id.counter += tuple_length
-    return states_list
+class State(Enum):
+    CHOOSING_ACTION = 1
+    CHOOSING_LOCATION = 2
+    CHOOSING_PRODUCT = 3
+    ENTERING_AMOUNT = 4
+    EXECUTE_QUEUE = 5
 
-# State definitions for top level conversation
-SELECTING_ACTION, SELECTING_LOCATION, SELECTING_PRODUCT, TYPING_AMOUNT = get_states_id(4)
-# Shortcut for ConversationHandler.END
-END = ConversationHandler.END
+class Action(Enum):
+    SHOW = 1
+    ADD = 2
+    REMOVE = 3
+    UPDATE = 4
+    BACK = 5
+    DONE = ConversationHandler.END
 
-# Different constants
-(
-    ADDING_ACTION,
-    REMOVING_ACTION,
-    UPDATING_ACTION
-) = get_states_id(4)
+# userdata keys for values
+class UserDataKey(Enum):
+    ACTION = 1
+    PRODUCT = 2
+    LOCATION = 3
+    AMOUNT = 4
+    NEW_TEXT = 5
+    FIELD_TYPE = 6
 
+ACTION_DESCRIPTIONS = {
+    Action.SHOW: "🔍 Показати",
+    Action.ADD: "➕ Додати",
+    Action.REMOVE: "Видалити",
+    Action.UPDATE: "Оновити",
+    Action.BACK: "Назад",
+    Action.DONE: "Закінчити",
+}
 
 WELCOME_TEXT = "Ви можете обновити інформацію щодо складу. Щоб зупинити, просто введіть команду /stop."
 COMEBACK_TEXT = "Повертайся скоріш! Для цього використай /start"
+PROCESSED_TEXT = "Neat! Just so you know, this is what you already told me:"
+# NEW_TEXT_MESSAGE = "І як воно називається?"
+AMOUNT_MESSAGE = "І скільки ж стало '%s' в '%s'?"
+ADD_AMOUNT_MESSAGE = "I скільки ж '%s' зʼявилось в '%s'"
+SHOWING_TEXT = "🔍 Ось що в нас є:"
 
-# Helper
-def _name_switcher(level: str) -> Tuple[str, str]:
-    if level == PARENTS:
-        return "Father", "Mother"
-    return "Brother", "Sister"
+REMOVE_CAPTION = "❌"
+
+# common
 
 
-# Top level conversation callbacks
+def clear_field(key, context):
+
+    if key in context.user_data:
+        del context.user_data[key]
+
+
+def reset_data(context: ContextTypes.DEFAULT_TYPE):
+
+    for key in UserDataKey:
+        clear_field(key, context)
+
+# def get_data_buttons():
+
+
+# ask for action
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
-    buttons = [
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    def ac_button(action_type, state):
+        return InlineKeyboardButton(text=ACTION_DESCRIPTIONS[action_type], callback_data=state) 
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    instances = dbwrapper.get_instance_list()
+    locations = dbwrapper.get_location_list()
+    products =  dbwrapper.get_product_list()
+
+    buttons = []
+    for ( id, product, location, amount, lastModifyDate, lastModifyAuthor ) in instances:
+        location_str = next((x for x in locations if x[0] == location), None)[1]
+        product_str = next((x for x in products if x[0] == product), None)[1]
+        buttons.append([
+            InlineKeyboardButton(text=str(amount), callback_data={
+                UserDataKey.ACTION: Action.UPDATE,
+                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT,
+                'data': id
+            } ),
+            InlineKeyboardButton(text=str(product_str), callback_data={
+                UserDataKey.ACTION: Action.UPDATE,
+                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
+                'data': id
+            }),
+            InlineKeyboardButton(text=str(location_str), callback_data={
+                UserDataKey.ACTION: Action.UPDATE,
+                UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
+                'data': id
+            }),
+            InlineKeyboardButton(text=REMOVE_CAPTION, callback_data={
+                UserDataKey.ACTION: Action.REMOVE,
+                'data': id
+            }),
+        ])
+    buttons.append([
+        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.ADD], callback_data={
+                UserDataKey.ACTION: Action.ADD,
+                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
+            }),
+        ac_button(Action.DONE, ConversationHandler.END)
+    ])
+
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text=SHOWING_TEXT, reply_markup=keyboard)
+    else:
+        await update.message.reply_text(text=SHOWING_TEXT, reply_markup=keyboard)
+
+    return State.CHOOSING_ACTION
+
+
+async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    await update.callback_query.answer()
+    user_data = update.callback_query.data
+    for key in user_data:
+        context.user_data[key] = user_data[key]
+
+    if user_data[UserDataKey.ACTION] == Action.ADD:
+
+        await select_location(update, context)
+        return State.CHOOSING_LOCATION
+
+    elif user_data[UserDataKey.ACTION] == Action.SHOW:
+
+        await select_location(update, context)
+        return State.CHOOSING_LOCATION
+
+    elif user_data[UserDataKey.ACTION] == Action.UPDATE:
+
+        if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.AMOUNT:
+            await ask_amount(update, context)
+            return State.ENTERING_AMOUNT
+        elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+            await select_product(update, context)
+            return State.CHOOSING_PRODUCT
+        elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
+            await select_location(update, context)
+            return State.CHOOSING_LOCATION
+
+
+async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    locations = dbwrapper.get_location_list()
+    buttons = []
+    for location_id, location_name in locations:
+        buttons.append([InlineKeyboardButton(text=location_name, callback_data=location_id),])
+
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.callback_query.edit_message_text(text="Виберіть локацію:", reply_markup=keyboard)
+
+    return State.CHOOSING_LOCATION
+
+async def on_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    await update.callback_query.answer()
+
+    selected_location =  update.callback_query.data
+
+    if context.user_data[UserDataKey.ACTION] == Action.UPDATE:
+        if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
+            dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, {'location_id': selected_location}, {'id': context.user_data['data']})
+            return await start(update, context)
+    elif context.user_data[UserDataKey.ACTION] == Action.ADD:
+        context.user_data[UserDataKey.LOCATION] = selected_location
+        return await select_product(update, context)
+
+
+async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    products = dbwrapper.get_product_list()
+    buttons = []
+    for product_id, product_name in products:
+        buttons.append([InlineKeyboardButton(text=product_name, callback_data=product_id),])
+
+    buttons += [ 
         [
-            InlineKeyboardButton(text="Додати", callback_data=str(ADDING_ACTION)),
-            InlineKeyboardButton(text="Видалити", callback_data=str(REMOVING_ACTION)),
-            InlineKeyboardButton(text="Оновити", callback_data=str(UPDATING_ACTION)),
-        ],
-        [
-            InlineKeyboardButton(text="Показати", callback_data=str(SHOWING)),
-            InlineKeyboardButton(text="Готово", callback_data=str(END)),
+            InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.BACK], callback_data=State.CHOOSING_LOCATION),
         ],
     ]
     keyboard = InlineKeyboardMarkup(buttons)
 
-    # If we're starting over we don't need to send a new message
-    if context.user_data.get(START_OVER):
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text=WELCOME_TEXT, reply_markup=keyboard)
-    else:
-        await update.message.reply_text(text=WELCOME_TEXT, reply_markup=keyboard)
+    await update.callback_query.edit_message_text(text="Виберіть продукцію:", reply_markup=keyboard)
 
-    context.user_data[START_OVER] = False
-    return SELECTING_ACTION
+    return State.CHOOSING_PRODUCT
 
 
-async def adding_self(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Add information about yourself."""
-    context.user_data[CURRENT_LEVEL] = SELF
-    text = "Okay, please tell me about yourself."
-    button = InlineKeyboardButton(text="Add info", callback_data=str(MALE))
-    keyboard = InlineKeyboardMarkup.from_button(button)
+async def on_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    logging.info(inspect.stack()[0][0].f_code.co_name)
 
-    return DESCRIBING_SELF
+    selected_product =  update.callback_query.data
+
+    if context.user_data[UserDataKey.ACTION] == Action.UPDATE:
+        if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
+            dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, {'product_id': selected_product}, {'id': context.user_data['data']})
+            return await start(update, context)
+    elif context.user_data[UserDataKey.ACTION] == Action.ADD:
+        context.user_data[UserDataKey.PRODUCT] = selected_product
+        return await ask_amount(update, context)
 
 
-async def show_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Pretty print gathered data."""
+async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
-    def pretty_print(data: Dict[str, Any], level: str) -> str:
-        people = data.get(level)
-        if not people:
-            return "\nNo information yet."
+    logging.info(inspect.stack()[0][0].f_code.co_name)
 
-        return_str = ""
-        if level == SELF:
-            for person in data[level]:
-                return_str += f"\nName: {person.get(NAME, '-')}, Age: {person.get(AGE, '-')}"
-        else:
-            male, female = _name_switcher(level)
-
-            for person in data[level]:
-                gender = female if person[GENDER] == FEMALE else male
-                return_str += (
-                    f"\n{gender}: Name: {person.get(NAME, '-')}, Age: {person.get(AGE, '-')}"
-                )
-        return return_str
+    # clear_field( UserDataKey.NEW_TEXT, context )
 
     user_data = context.user_data
-    text = f"Yourself:{pretty_print(user_data, SELF)}"
-    text += f"\n\nParents:{pretty_print(user_data, PARENTS)}"
-    text += f"\n\nChildren:{pretty_print(user_data, CHILDREN)}"
+    message = ""
 
-    buttons = [[InlineKeyboardButton(text="Back", callback_data=str(END))]]
-    keyboard = InlineKeyboardMarkup(buttons)
+    instances = dbwrapper.get_instance_list()
+    products = dbwrapper.get_product_list()
+    locations = dbwrapper.get_location_list()
+
+    if user_data[UserDataKey.ACTION] == Action.UPDATE:
+
+        instance = next((x for x in instances if x[0] == user_data['data']), None)
+        ( id, product_id, location_id, amount, lastModifyDate, lastModifyAuthor ) = instance
+        product_name = next((x for x in products if x[0] == product_id), None)[1]
+        location_name = next((x for x in locations if x[0] == location_id), None)[1]
+        message = AMOUNT_MESSAGE % (product_name, location_name)
+    
+    elif user_data[UserDataKey.ACTION] == Action.ADD:
+
+        product_name = next((x for x in products if x[0] == user_data[UserDataKey.PRODUCT]), None)[1]
+        location_name = next((x for x in locations if x[0] ==  user_data[UserDataKey.LOCATION]), None)[1]
+        message = ADD_AMOUNT_MESSAGE % (product_name, location_name)
 
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    user_data[START_OVER] = True
+    await update.callback_query.edit_message_text(text=message)
 
-    return SHOWING
+    return State.ENTERING_AMOUNT
 
+
+async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    user_data = context.user_data
+
+    if user_data[UserDataKey.ACTION] == Action.UPDATE:
+        dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, 
+            {'amount': update.message.text },
+            {'id': user_data['data']}
+        )
+        await start(update, context)
+        return State.CHOOSING_ACTION
+
+    elif user_data[UserDataKey.ACTION] == Action.ADD:
+        dbwrapper.insert_value(dbwrapper.INSTANCE_TABLE, {
+            "product_id": user_data[UserDataKey.PRODUCT],
+            "location_id": user_data[UserDataKey.LOCATION],
+            "amount": update.message.text,
+            "lastModifyAuthor": update.effective_user.name,
+        })
+        await start(update, context)
+        return State.CHOOSING_ACTION
+    
+    else:
+        logging.error("Unexpected action: %s" % user_data[UserDataKey.ACTION])
+
+    # if context.user_data[UserDataKey.CURRENT_TEXT_TYPE] == UserDataKey.AMOUNT:
+    #    current_tier[ UserDataKey.AMOUNT ](
+    #         user_data[UserDataKey.LOCATION],
+    #         user_data[UserDataKey.PRODUCT],
+    #         entered_text
+    #     )
+    # elif UserDataKey.PRODUCT in user_data:
+    #    current_tier[ UserDataKey.PRODUCT ](
+    #         user_data[UserDataKey.PRODUCT],
+    #         entered_text
+    #     )
+    # elif UserDataKey.LOCATION in user_data:
+    #    current_tier[ UserDataKey.LOCATION ](
+    #         user_data[UserDataKey.LOCATION],
+    #         entered_text
+    #     )
+
+
+    reset_data(context)
+
+    return await start(update, context)
+
+async def add_location():
+    pass
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """End Conversation by command."""
-    await update.message.reply_text("Okay, bye.")
 
-    return END
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    await update.message.reply_text(COMEBACK_TEXT, reply_markup=ReplyKeyboardRemove())
+
+    return ConversationHandler.END
 
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """End conversation from InlineKeyboardButton."""
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
     await update.callback_query.answer()
     await update.callback_query.edit_message_text(text=COMEBACK_TEXT)
-    return END
+
+    return ConversationHandler.END
+
+# getter
+
+def get_handler():
 
 
-# Second level conversation callbacks
-async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Choose to add a parent or a child."""
-    text = "You may add a parent or a child. Also you can show the gathered data or go back."
-    buttons = [
-        [
-            InlineKeyboardButton(text="Add parent", callback_data=str(PARENTS)),
-            InlineKeyboardButton(text="Add child", callback_data=str(CHILDREN)),
+    return ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+
+        # exit state -> handler
+        states={
+            State.CHOOSING_ACTION: [
+                CallbackQueryHandler(on_storage_action),
+            ],
+            State.CHOOSING_LOCATION: [
+                CallbackQueryHandler(on_location),
+            ],
+            State.CHOOSING_PRODUCT: [
+                CallbackQueryHandler(on_product),
+            ],
+            State.ENTERING_AMOUNT: [
+                MessageHandler( filters.TEXT & ~filters.COMMAND, on_amount )
+            ],
+        },
+        fallbacks=[
+            CommandHandler("stop", stop),
+            CallbackQueryHandler(stop, pattern="^" + str(ConversationHandler.END) + "$")
         ],
-        [
-            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
-            InlineKeyboardButton(text="Back", callback_data=str(END)),
-        ],
-    ]
-    keyboard = InlineKeyboardMarkup(buttons)
+        allow_reentry=True
+    )
 
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-
-    return SELECTING_LEVEL
-
-
-async def select_gender(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Choose to add mother or father."""
-    level = update.callback_query.data
-    context.user_data[CURRENT_LEVEL] = level
-
-    text = "Please choose, whom to add."
-
-    buttons = [
-        [
-            InlineKeyboardButton(text=f"Add {male}", callback_data=str(MALE)),
-            InlineKeyboardButton(text=f"Add {female}", callback_data=str(FEMALE)),
-        ],
-        [
-            InlineKeyboardButton(text="Show data", callback_data=str(SHOWING)),
-            InlineKeyboardButton(text="Back", callback_data=str(END)),
-        ],
-    ]
-    keyboard = InlineKeyboardMarkup(buttons)
-
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-
-    return SELECTING_GENDER
-
-
-async def end_second_level(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Return to top level conversation."""
-    context.user_data[START_OVER] = True
-    await start(update, context)
-
-    return END
-
-
-# Third level callbacks
-async def select_feature(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Select a feature to update for the person."""
-    buttons = [
-        [
-            InlineKeyboardButton(text="Name", callback_data=str(NAME)),
-            InlineKeyboardButton(text="Age", callback_data=str(AGE)),
-            InlineKeyboardButton(text="Done", callback_data=str(END)),
-        ]
-    ]
-    keyboard = InlineKeyboardMarkup(buttons)
-
-    # If we collect features for a new person, clear the cache and save the gender
-    if not context.user_data.get(START_OVER):
-        context.user_data[FEATURES] = {GENDER: update.callback_query.data}
-        text = "Please select a feature to update."
-
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    # But after we do that, we need to send a new message
-    else:
-        text = "Got it! Please select a feature to update."
-        await update.message.reply_text(text=text, reply_markup=keyboard)
-
-    context.user_data[START_OVER] = False
-    return SELECTING_FEATURE
-
-
-async def ask_for_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Prompt user to input data for selected feature."""
-    context.user_data[CURRENT_FEATURE] = update.callback_query.data
-    text = "Okay, tell me."
-
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text(text=text)
-
-    return TYPING_AMOUNT
-
-
-async def stop_nested(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-    """Completely end conversation from within nested conversation."""
-    await update.message.reply_text(COMEBACK_TEXT)
-
-    return STOPPING

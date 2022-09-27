@@ -30,10 +30,11 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Instance', 
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ( 'id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ( 'product', models.ForeignKey('hkdb.product', on_delete=models.CASCADE) ),
                 ( 'location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE) ),
-                ( 'lastModifyDate', models.DateTimeField(auto_now=True) ),
+                ( 'amount', models.TextField(editable=True, verbose_name=b'Amount')),
+                ( 'lastModifyDate', models.DateTimeField(auto_now=True, null=True) ),
                 ( 'lastModifyAuthor', models.TextField(editable=True, verbose_name=b'Editor') ),
             ]
         ),
