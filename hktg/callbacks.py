@@ -115,10 +115,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
                 UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
                 'data': id
             }),
-            InlineKeyboardButton(text=REMOVE_CAPTION, callback_data={
-                UserDataKey.ACTION: Action.REMOVE,
-                'data': id
-            }),
         ])
     buttons.append([
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.ADD], callback_data={
@@ -174,6 +170,9 @@ async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
             await select_location(update, context)
             return State.CHOOSING_LOCATION
+
+    elif user_data[UserDataKey.ACTION] == Action.REMOVE:
+        pass
 
 
 async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -312,23 +311,6 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     else:
         logging.error("Unexpected action: %s" % user_data[UserDataKey.ACTION])
-
-    # if context.user_data[UserDataKey.CURRENT_TEXT_TYPE] == UserDataKey.AMOUNT:
-    #    current_tier[ UserDataKey.AMOUNT ](
-    #         user_data[UserDataKey.LOCATION],
-    #         user_data[UserDataKey.PRODUCT],
-    #         entered_text
-    #     )
-    # elif UserDataKey.PRODUCT in user_data:
-    #    current_tier[ UserDataKey.PRODUCT ](
-    #         user_data[UserDataKey.PRODUCT],
-    #         entered_text
-    #     )
-    # elif UserDataKey.LOCATION in user_data:
-    #    current_tier[ UserDataKey.LOCATION ](
-    #         user_data[UserDataKey.LOCATION],
-    #         entered_text
-    #     )
 
 
     reset_data(context)
