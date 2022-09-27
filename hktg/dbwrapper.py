@@ -4,8 +4,8 @@ import os
 import logging
 import inspect
 
-# DATABASE_URL = os.environ["DATABASE_URL"]
-DATABASE_URL = 'postgres://wprlgaxw:QoFbjtHSP05i9YUKOrVVX0W4K5wp8zBb@rogue.db.elephantsql.com/wprlgaxw'
+DATABASE_URL = os.environ["DATABASE_URL"]
+
 # util
 
 LOCATION_TABLE = 'hkdb_location'

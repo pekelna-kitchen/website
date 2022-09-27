@@ -24,7 +24,8 @@ class Migration(migrations.Migration):
             name='Product',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.TextField(editable=True, verbose_name=b'Product'))
+                ('name', models.TextField(editable=True, verbose_name=b'Product')),
+                ('limit', models.TextField(editable=True, verbose_name=b'Limit to notify', null=True))
             ],
         ),
         migrations.CreateModel(
@@ -34,8 +35,8 @@ class Migration(migrations.Migration):
                 ( 'product', models.ForeignKey('hkdb.product', on_delete=models.CASCADE) ),
                 ( 'location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE) ),
                 ( 'amount', models.TextField(editable=True, verbose_name=b'Amount')),
-                ( 'lastModifyDate', models.DateTimeField(auto_now=True, verbose_name=b'Date modified')),
-                ( 'lastModifyAuthor', models.TextField(editable=True, verbose_name=b'Editor') ),
+                ( 'date', models.DateTimeField(auto_now=True, verbose_name=b'Date modified')),
+                ( 'editor', models.TextField(editable=True, verbose_name=b'Editor') ),
             ]
         ),
     ]

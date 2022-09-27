@@ -3,6 +3,7 @@ from typing import Any, Dict, Tuple
 from enum import Enum
 import logging
 import inspect
+from datetime import datetime
 
 from telegram import (
     ReplyKeyboardMarkup,
@@ -28,7 +29,8 @@ class State(Enum):
     CHOOSING_LOCATION = 2
     CHOOSING_PRODUCT = 3
     ENTERING_AMOUNT = 4
-    EXECUTE_QUEUE = 5
+    ENTERING_LOCATION = 5
+    ENTERING_PRODUCT = 6
 
 class Action(Enum):
     SHOW = 1
@@ -59,7 +61,8 @@ ACTION_DESCRIPTIONS = {
 WELCOME_TEXT = "Ви можете обновити інформацію щодо складу. Щоб зупинити, просто введіть команду /stop."
 COMEBACK_TEXT = "Повертайся скоріш! Для цього використай /start"
 PROCESSED_TEXT = "Neat! Just so you know, this is what you already told me:"
-# NEW_TEXT_MESSAGE = "І як воно називається?"
+NEW_LOCATION_TEXT = "І як нове місце називається?"
+NEW_PRODUCT_TEXT = "І як новий продукт називається?"
 AMOUNT_MESSAGE = "І скільки ж стало '%s' в '%s'?"
 ADD_AMOUNT_MESSAGE = "I скільки ж '%s' зʼявилось в '%s'"
 SHOWING_TEXT = "🔍 Ось що в нас є:"
@@ -88,17 +91,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
-    def ac_button(action_type, state):
-        return InlineKeyboardButton(text=ACTION_DESCRIPTIONS[action_type], callback_data=state) 
-
-    logging.info(inspect.stack()[0][0].f_code.co_name)
-
     instances = dbwrapper.get_instance_list()
     locations = dbwrapper.get_location_list()
     products =  dbwrapper.get_product_list()
 
     buttons = []
-    for ( id, product, location, amount, lastModifyDate, lastModifyAuthor ) in instances:
+    for ( id, product, location, amount, date, editor ) in instances:
         location_str = next((x for x in locations if x[0] == location), None)[1]
         product_str = next((x for x in products if x[0] == product), None)[1]
         buttons.append([
@@ -127,7 +125,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
                 UserDataKey.ACTION: Action.ADD,
                 UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
             }),
-        ac_button(Action.DONE, ConversationHandler.END)
+        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
+                UserDataKey.ACTION: ConversationHandler.END,
+                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
+            }),
     ])
 
     keyboard = InlineKeyboardMarkup(buttons)
@@ -149,7 +150,10 @@ async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     for key in user_data:
         context.user_data[key] = user_data[key]
 
-    if user_data[UserDataKey.ACTION] == Action.ADD:
+    if user_data[UserDataKey.ACTION] == ConversationHandler.END:
+        return await end(update, context)
+
+    elif user_data[UserDataKey.ACTION] == Action.ADD:
 
         await select_location(update, context)
         return State.CHOOSING_LOCATION
@@ -181,6 +185,10 @@ async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     for location_id, location_name in locations:
         buttons.append([InlineKeyboardButton(text=location_name, callback_data=location_id),])
 
+    buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
+        "action": Action.ADD
+    })])
+
     keyboard = InlineKeyboardMarkup(buttons)
 
     await update.callback_query.edit_message_text(text="Виберіть локацію:", reply_markup=keyboard)
@@ -193,7 +201,10 @@ async def on_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     selected_location =  update.callback_query.data
 
-    if context.user_data[UserDataKey.ACTION] == Action.UPDATE:
+    if isinstance(selected_location, dict):
+        return await add_location(update, context)
+
+    elif context.user_data[UserDataKey.ACTION] == Action.UPDATE:
         if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
             dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, {'location_id': selected_location}, {'id': context.user_data['data']})
             return await start(update, context)
@@ -206,14 +217,12 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     products = dbwrapper.get_product_list()
     buttons = []
-    for product_id, product_name in products:
+    for product_id, product_name, product_limit in products:
         buttons.append([InlineKeyboardButton(text=product_name, callback_data=product_id),])
 
-    buttons += [ 
-        [
-            InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.BACK], callback_data=State.CHOOSING_LOCATION),
-        ],
-    ]
+    buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
+        "action": Action.ADD
+    })])
     keyboard = InlineKeyboardMarkup(buttons)
 
     await update.callback_query.edit_message_text(text="Виберіть продукцію:", reply_markup=keyboard)
@@ -226,6 +235,9 @@ async def on_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
     selected_product =  update.callback_query.data
+
+    if isinstance(selected_product, dict):
+        return await add_product(update, context)
 
     if context.user_data[UserDataKey.ACTION] == Action.UPDATE:
         if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
@@ -252,7 +264,7 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
 
         instance = next((x for x in instances if x[0] == user_data['data']), None)
-        ( id, product_id, location_id, amount, lastModifyDate, lastModifyAuthor ) = instance
+        ( id, product_id, location_id, amount, date, editor ) = instance
         product_name = next((x for x in products if x[0] == product_id), None)[1]
         location_name = next((x for x in locations if x[0] == location_id), None)[1]
         message = AMOUNT_MESSAGE % (product_name, location_name)
@@ -277,7 +289,11 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
         dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, 
-            {'amount': update.message.text },
+            {
+                'amount': update.message.text,
+                "date": datetime.now(),
+                "editor": update.effective_user.name,
+            },
             {'id': user_data['data']}
         )
         await start(update, context)
@@ -288,7 +304,8 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "product_id": user_data[UserDataKey.PRODUCT],
             "location_id": user_data[UserDataKey.LOCATION],
             "amount": update.message.text,
-            "lastModifyAuthor": update.effective_user.name,
+            "date": datetime.now(),
+            "editor": update.effective_user.name,
         })
         await start(update, context)
         return State.CHOOSING_ACTION
@@ -318,8 +335,31 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return await start(update, context)
 
-async def add_location():
-    pass
+async def add_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=NEW_LOCATION_TEXT)
+
+    return State.ENTERING_LOCATION
+
+async def on_add_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    dbwrapper.insert_value(dbwrapper.LOCATION_TABLE, {"name": update.message.text})
+    return await start(update, context)
+
+async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=NEW_PRODUCT_TEXT)
+
+    return State.ENTERING_PRODUCT
+
+async def on_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    dbwrapper.insert_value(dbwrapper.PRODUCT_TABLE, {"name": update.message.text})
+    return await start(update, context)
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
@@ -360,6 +400,12 @@ def get_handler():
             ],
             State.ENTERING_AMOUNT: [
                 MessageHandler( filters.TEXT & ~filters.COMMAND, on_amount )
+            ],
+            State.ENTERING_LOCATION: [
+                MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_location )
+            ],
+            State.ENTERING_PRODUCT: [
+                MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_product )
             ],
         },
         fallbacks=[
