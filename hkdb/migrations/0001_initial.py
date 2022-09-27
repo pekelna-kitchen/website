@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ( 'product', models.ForeignKey('hkdb.product', on_delete=models.CASCADE) ),
                 ( 'location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE) ),
                 ( 'amount', models.TextField(editable=True, verbose_name=b'Amount')),
-                ( 'lastModifyDate', models.DateTimeField(auto_now=True, null=True) ),
+                ( 'lastModifyDate', models.DateTimeField(auto_now=True, verbose_name=b'Date modified')),
                 ( 'lastModifyAuthor', models.TextField(editable=True, verbose_name=b'Editor') ),
             ]
         ),
