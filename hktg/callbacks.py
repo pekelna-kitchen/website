@@ -336,16 +336,18 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return await ask_amount(update, context)
 
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
-        dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, 
-            {
-                'amount': update.message.text,
-                "date": "'%s'" % datetime.now(),
-                "editor": "'%s'" % update.effective_user.name,
-            },
-            {'id': user_data['data']}
-        )
-        await start(update, context)
-        return State.CHOOSING_ACTION
+        if int(update.message.text) == 0:
+            dbwrapper.delete_value(dbwrapper.INSTANCE_TABLE, {'id': user_data['data']})
+        else:
+            dbwrapper.update_value(dbwrapper.INSTANCE_TABLE,
+                {
+                    'amount': update.message.text,
+                    "date": "'%s'" % datetime.now(),
+                    "editor": "'%s'" % update.effective_user.name,
+                },
+                {'id': user_data['data']}
+            )
+        return await start(update, context)
 
     elif user_data[UserDataKey.ACTION] == Action.ADD:
         dbwrapper.insert_value(dbwrapper.INSTANCE_TABLE, {

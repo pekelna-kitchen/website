@@ -14,6 +14,12 @@ PRODUCT_TABLE = 'hkdb_products'
 CONTAINER_TABLE = 'hkdb_containers'
 LIMIT_TABLE = 'hkdb_limits'
 
+def _join_dict(table: dict):
+    result = []
+    for k in table:
+        result.append("%s=%s" % (k, table[k]))
+    return ', '.join(result)
+
 def _query(q: str):
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
@@ -27,13 +33,11 @@ def get_table(name):
     return cur.fetchall()
 
 def update_value(table_name, data: dict, criteria:dict ):
-    def join_dict(table: dict):
-        result = []
-        for k in table:
-            result.append("%s=%s" % (k, table[k]))
-        return ', '.join(result)
+    conn, cur = _query("UPDATE %s SET %s WHERE %s;" % (table_name, _join_dict(data), _join_dict(criteria)))
+    conn.commit()
 
-    conn, cur = _query("UPDATE %s SET %s WHERE %s;" % (table_name, join_dict(data), join_dict(criteria)))
+def delete_value(table_name, criteria:dict ):
+    conn, cur = _query("DELETE FROM %s WHERE %s;" % (table_name, _join_dict(criteria)))
     conn.commit()
 
 def insert_value(table_name, data: dict):
