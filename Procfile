@@ -1,6 +1,6 @@
 web: gunicorn hkwh.wsgi
 worker: python tgbot.py
 
-init: python manage.py init
+makemigrations: python manage.py makemigrations
 migrate: python manage.py migrate
 upgrade: python manage.py upgrade

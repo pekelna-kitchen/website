@@ -31,13 +31,17 @@ class State(Enum):
     ENTERING_AMOUNT = 4
     ENTERING_LOCATION = 5
     ENTERING_PRODUCT = 6
+    FILTERED_VIEW = 7
+    CHOOSING_CONTAINER = 8
+    ENTERING_CONTAINER_SYMBOL = 9
+    ENTERING_CONTAINER_DESCRIPTION = 10
 
 class Action(Enum):
     SHOW = 1
     ADD = 2
     REMOVE = 3
     UPDATE = 4
-    BACK = 5
+    FILTER = 5
     DONE = ConversationHandler.END
 
 # userdata keys for values
@@ -45,17 +49,18 @@ class UserDataKey(Enum):
     ACTION = 1
     PRODUCT = 2
     LOCATION = 3
-    AMOUNT = 4
-    NEW_TEXT = 5
-    FIELD_TYPE = 6
+    CONTAINER = 4
+    AMOUNT = 5
+    CONTAINER_SYMBOL = 6
+    FIELD_TYPE = 7
 
 ACTION_DESCRIPTIONS = {
     Action.SHOW: "🔍 Показати",
     Action.ADD: "➕ Додати",
     Action.REMOVE: "Видалити",
     Action.UPDATE: "Оновити",
-    Action.BACK: "Назад",
     Action.DONE: "Закінчити",
+    # Action.FILTER: "Фільтр",
 }
 
 WELCOME_TEXT = "Ви можете обновити інформацію щодо складу. Щоб зупинити, просто введіть команду /stop."
@@ -63,14 +68,24 @@ COMEBACK_TEXT = "Повертайся скоріш! Для цього викор
 PROCESSED_TEXT = "Neat! Just so you know, this is what you already told me:"
 NEW_LOCATION_TEXT = "І як нове місце називається?"
 NEW_PRODUCT_TEXT = "І як новий продукт називається?"
-AMOUNT_MESSAGE = "І скільки ж стало '%s' в '%s'?"
-ADD_AMOUNT_MESSAGE = "I скільки ж '%s' зʼявилось в '%s'"
-SHOWING_TEXT = "🔍 Ось що в нас є:"
+NEW_CONTAINER_SYMB_TEXT = "І який символ у нової тари? Одне емодзі"
+NEW_CONTAINER_DESC_TEXT = "І як нова %s тара називається?"
+AMOUNT_MESSAGE = "І скільки ж стало %s з %s в %s? Тільки цифрами"
+ADD_AMOUNT_MESSAGE = "I скільки ж %s з %s зʼявилось в %s?  Тільки цифрами"
+SHOWING_TEXT = "🏠 Ось що в нас є:"
+FILTERED_VIEW_TEXT = "🔍 Шукаєм %s:"
 
+# TODO
 REMOVE_CAPTION = "❌"
 
 # common
 
+def isfloat(num):
+    try:
+        float(num)
+        return True
+    except ValueError:
+        return False
 
 def clear_field(key, context):
 
@@ -83,39 +98,52 @@ def reset_data(context: ContextTypes.DEFAULT_TYPE):
     for key in UserDataKey:
         clear_field(key, context)
 
-# def get_data_buttons():
-
-
-# ask for action
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
-
-    logging.info(inspect.stack()[0][0].f_code.co_name)
-
-    instances = dbwrapper.get_instance_list()
-    locations = dbwrapper.get_location_list()
-    products =  dbwrapper.get_product_list()
+def build_data_buttons(constraint = None):
 
     buttons = []
-    for ( id, product, location, amount, date, editor ) in instances:
+
+    instances = dbwrapper.get_table(dbwrapper.INSTANCE_TABLE)
+    locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
+    products = dbwrapper.get_table(dbwrapper.PRODUCT_TABLE)
+    containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
+
+    for ( id, product, location, amount, container,  date, editor ) in instances:
+        if constraint and not constraint(product, location, amount, container, date, editor):
+            continue
+
         location_str = next((x for x in locations if x[0] == location), None)[1]
         product_str = next((x for x in products if x[0] == product), None)[1]
+        container_str = next((x for x in containers if x[0] == container), None)[1]
         buttons.append([
             InlineKeyboardButton(text=str(amount), callback_data={
                 UserDataKey.ACTION: Action.UPDATE,
                 UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT,
                 'data': id
             } ),
-            InlineKeyboardButton(text=str(product_str), callback_data={
+            InlineKeyboardButton(text=str(container_str), callback_data={
                 UserDataKey.ACTION: Action.UPDATE,
-                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
+                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER,
                 'data': id
+            } ),
+            InlineKeyboardButton(text=str(product_str), callback_data={
+                UserDataKey.ACTION: Action.FILTER,
+                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
+                'data': product
             }),
             InlineKeyboardButton(text=str(location_str), callback_data={
-                UserDataKey.ACTION: Action.UPDATE,
+                UserDataKey.ACTION: Action.FILTER,
                 UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
-                'data': id
+                'data': location
             }),
         ])
+    return buttons
+
+# ask for action
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    buttons = build_data_buttons()
     buttons.append([
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.ADD], callback_data={
                 UserDataKey.ACTION: Action.ADD,
@@ -135,7 +163,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
         await update.message.reply_text(text=SHOWING_TEXT, reply_markup=keyboard)
 
     return State.CHOOSING_ACTION
-
 
 async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
@@ -170,16 +197,20 @@ async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
             await select_location(update, context)
             return State.CHOOSING_LOCATION
+        elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.CONTAINER:
+            await select_container(update, context)
+            return State.CHOOSING_CONTAINER
 
-    elif user_data[UserDataKey.ACTION] == Action.REMOVE:
-        pass
+    elif user_data[UserDataKey.ACTION] == Action.FILTER:
+        await filtered_view(update, context)
+        return State.FILTERED_VIEW
 
 
 async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
-    locations = dbwrapper.get_location_list()
+    locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
     buttons = []
     for location_id, location_name in locations:
         buttons.append([InlineKeyboardButton(text=location_name, callback_data=location_id),])
@@ -214,9 +245,10 @@ async def on_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
-    products = dbwrapper.get_product_list()
+    products = dbwrapper.get_table(dbwrapper.PRODUCT_TABLE)
+
     buttons = []
-    for product_id, product_name, product_limit in products:
+    for product_id, product_name in products:
         buttons.append([InlineKeyboardButton(text=product_name, callback_data=product_id),])
 
     buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
@@ -228,7 +260,6 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     return State.CHOOSING_PRODUCT
 
-
 async def on_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
@@ -239,11 +270,44 @@ async def on_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
         return await add_product(update, context)
 
     if context.user_data[UserDataKey.ACTION] == Action.UPDATE:
-        if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
+        if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
             dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, {'product_id': selected_product}, {'id': context.user_data['data']})
             return await start(update, context)
     elif context.user_data[UserDataKey.ACTION] == Action.ADD:
         context.user_data[UserDataKey.PRODUCT] = selected_product
+        return await select_container(update, context)
+
+async def select_container(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
+    buttons = []
+    for container_id, containers_symbol, containers_desc in containers:
+        buttons.append([
+            InlineKeyboardButton(text="%s %s" % (containers_symbol, containers_desc), callback_data=container_id),
+        ])
+
+    buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
+        "action": Action.ADD
+    })])
+
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.callback_query.edit_message_text(text="Виберіть тару:", reply_markup=keyboard)
+
+    return State.CHOOSING_CONTAINER
+
+async def on_container(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    selected_container =  update.callback_query.data
+    user_data = context.user_data
+
+    if isinstance(selected_container, dict):
+        return await add_container(update, context)
+
+    if context.user_data[UserDataKey.ACTION] == Action.ADD:
+        context.user_data[UserDataKey.CONTAINER] = selected_container
         return await ask_amount(update, context)
 
 
@@ -251,14 +315,13 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
-    # clear_field( UserDataKey.NEW_TEXT, context )
-
     user_data = context.user_data
     message = ""
 
-    instances = dbwrapper.get_instance_list()
-    products = dbwrapper.get_product_list()
-    locations = dbwrapper.get_location_list()
+    instances = dbwrapper.get_table(dbwrapper.INSTANCE_TABLE)
+    products = dbwrapper.get_table(dbwrapper.PRODUCT_TABLE)
+    locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
+    containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
 
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
 
@@ -272,19 +335,24 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
         product_name = next((x for x in products if x[0] == user_data[UserDataKey.PRODUCT]), None)[1]
         location_name = next((x for x in locations if x[0] ==  user_data[UserDataKey.LOCATION]), None)[1]
-        message = ADD_AMOUNT_MESSAGE % (product_name, location_name)
+        container_symbol = next((x for x in containers if x[0] == user_data[UserDataKey.CONTAINER]), None)[1]
 
-    await update.callback_query.answer()
+        message = ADD_AMOUNT_MESSAGE % (container_symbol, product_name, location_name)
+
     await update.callback_query.edit_message_text(text=message)
 
     return State.ENTERING_AMOUNT
-
 
 async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
+    # await update.callback_query.
+
     user_data = context.user_data
+
+    if not update.message.text.isdigit():
+        return await ask_amount(update, context)
 
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
         dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, 
@@ -302,6 +370,7 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         dbwrapper.insert_value(dbwrapper.INSTANCE_TABLE, {
             "product_id": user_data[UserDataKey.PRODUCT],
             "location_id": user_data[UserDataKey.LOCATION],
+            "container_id": user_data[UserDataKey.CONTAINER],
             "amount": update.message.text,
             "date": datetime.now(),
             "editor": update.effective_user.name,
@@ -317,6 +386,66 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return await start(update, context)
 
+async def add_container(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text(text=NEW_CONTAINER_SYMB_TEXT)
+
+    return State.ENTERING_CONTAINER_SYMBOL
+
+async def on_container_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    user_data = context.user_data
+
+    if user_data[UserDataKey.ACTION] == Action.UPDATE:
+        dbwrapper.update_value(dbwrapper.CONTAINER_TABLE,
+            {
+                'amount': update.message.text,
+                "date": datetime.now(),
+                "editor": update.effective_user.name,
+            },
+            {'id': user_data['data']}
+        )
+        return await start(update, context)
+
+    elif user_data[UserDataKey.ACTION] == Action.ADD:
+        user_data[UserDataKey.CONTAINER_SYMBOL] = update.message.text
+        return await add_container_description(update, context)
+    
+    else:
+        logging.error("Unexpected action: %s" % user_data[UserDataKey.ACTION])
+
+async def add_container_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+    user_data = context.user_data
+
+    message = NEW_CONTAINER_DESC_TEXT % user_data[UserDataKey.CONTAINER_SYMBOL]
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text=message)
+    else:
+        await update.message.reply_text(text=message)
+
+    return State.ENTERING_CONTAINER_DESCRIPTION
+
+async def on_container_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+    user_data = context.user_data
+
+    dbwrapper.insert_value(dbwrapper.CONTAINER_TABLE, {
+        "description": update.message.text,
+        "symbol": user_data[UserDataKey.CONTAINER_SYMBOL]
+    })
+
+    return await start(update, context)
+
+
 async def add_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
@@ -327,8 +456,12 @@ async def add_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return State.ENTERING_LOCATION
 
 async def on_add_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
     dbwrapper.insert_value(dbwrapper.LOCATION_TABLE, {"name": update.message.text})
+    # update.get_bot().send_message(chat_id, text)
     return await start(update, context)
+
 
 async def add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
@@ -343,6 +476,47 @@ async def on_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     dbwrapper.insert_value(dbwrapper.PRODUCT_TABLE, {"name": update.message.text})
     return await start(update, context)
 
+async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    await update.callback_query.answer()
+    cb_data = update.callback_query.data
+
+    def constraint(product, location, amount, container, date, editor):
+        if cb_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+            return product == cb_data['data']
+        if cb_data[UserDataKey.FIELD_TYPE] ==  UserDataKey.LOCATION:
+            return location == cb_data['data']
+        logging.warning("unexpected filter")
+        return True
+
+    buttons = build_data_buttons(constraint)
+    buttons.append([
+        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
+                UserDataKey.ACTION: ConversationHandler.END,
+                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
+            }),
+    ])
+
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    message = ""
+    if cb_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+        products = dbwrapper.get_table(dbwrapper.PRODUCT_TABLE)
+        product_str = next((x for x in products if x[0] == cb_data['data']), None)[1]
+        message = FILTERED_VIEW_TEXT % product_str
+    if cb_data[UserDataKey.FIELD_TYPE] ==  UserDataKey.LOCATION:
+        locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
+        location_str = next((x for x in locations if x[0] == cb_data['data']), None)[1]
+        message = FILTERED_VIEW_TEXT % location_str
+
+    await update.callback_query.edit_message_text(text=message, reply_markup=keyboard)
+
+    return State.FILTERED_VIEW
+
+async def on_filter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    return await start(update, context)
+
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
@@ -350,7 +524,6 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(COMEBACK_TEXT, reply_markup=ReplyKeyboardRemove())
 
     return ConversationHandler.END
-
 
 async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
@@ -380,8 +553,8 @@ def get_handler():
             State.CHOOSING_PRODUCT: [
                 CallbackQueryHandler(on_product),
             ],
-            State.ENTERING_AMOUNT: [
-                MessageHandler( filters.TEXT & ~filters.COMMAND, on_amount )
+            State.CHOOSING_CONTAINER: [
+                CallbackQueryHandler(on_container),
             ],
             State.ENTERING_LOCATION: [
                 MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_location )
@@ -389,6 +562,16 @@ def get_handler():
             State.ENTERING_PRODUCT: [
                 MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_product )
             ],
+            State.ENTERING_CONTAINER_SYMBOL: [
+                MessageHandler( filters.TEXT & ~filters.COMMAND, on_container_symbol )
+            ],
+            State.ENTERING_CONTAINER_DESCRIPTION: [
+                MessageHandler( filters.TEXT & ~filters.COMMAND, on_container_description )
+            ],
+            State.ENTERING_AMOUNT: [
+                MessageHandler( filters.TEXT & ~filters.COMMAND, on_amount )
+            ],
+            State.FILTERED_VIEW: [ CallbackQueryHandler(on_filter) ],
         },
         fallbacks=[
             CommandHandler("stop", stop),

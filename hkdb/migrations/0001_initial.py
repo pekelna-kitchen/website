@@ -14,29 +14,46 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Location',
+            name='containers',
+            fields=[
+                ( 'id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ( 'symbol', models.CharField(max_length=1, verbose_name='Container symbol') ),
+                ( 'description', models.TextField('Container description') ),
+            ],
+        ),
+        migrations.CreateModel(
+            name='locations',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.TextField(editable=True, verbose_name=b'Location')),
             ],
         ),
         migrations.CreateModel(
-            name='Product',
+            name='products',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.TextField(editable=True, verbose_name=b'Product')),
-                ('limit', models.TextField(editable=True, verbose_name=b'Limit to notify', null=True))
+                ( 'id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ( 'name', models.TextField(editable=True, verbose_name=b'Product')),
             ],
         ),
         migrations.CreateModel(
-            name='Instance', 
+            name='instances',
             fields=[
                 ( 'id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ( 'product', models.ForeignKey('hkdb.product', on_delete=models.CASCADE) ),
-                ( 'location', models.ForeignKey('hkdb.location', on_delete=models.CASCADE) ),
-                ( 'amount', models.TextField(editable=True, verbose_name=b'Amount')),
+                ( 'product', models.ForeignKey('hkdb.products', on_delete=models.CASCADE) ),
+                ( 'location', models.ForeignKey('hkdb.locations', on_delete=models.CASCADE) ),
+                ( 'amount', models.IntegerField(editable=True, verbose_name=b'Amount')),
+                ( 'container', models.ForeignKey('hkdb.containers', on_delete=models.CASCADE)),
                 ( 'date', models.DateTimeField(auto_now=True, verbose_name=b'Date modified')),
                 ( 'editor', models.TextField(editable=True, verbose_name=b'Editor') ),
+            ]
+        ),
+        migrations.CreateModel(
+            name='limits', 
+            fields=[
+                ( 'id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ( 'product', models.ForeignKey('hkdb.products', on_delete=models.CASCADE) ),
+                ( 'amount', models.IntegerField(editable=True, verbose_name=b'Amount')),
+                ( 'container', models.ForeignKey('hkdb.containers', on_delete=models.CASCADE)),
             ]
         ),
     ]
