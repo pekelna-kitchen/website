@@ -63,35 +63,25 @@ ACTION_DESCRIPTIONS = {
     # Action.FILTER: "Фільтр",
 }
 
-WELCOME_TEXT = "Ви можете обновити інформацію щодо складу. Щоб зупинити, просто введіть команду /stop."
 COMEBACK_TEXT = "Повертайся скоріш! Для цього використай /start"
-PROCESSED_TEXT = "Neat! Just so you know, this is what you already told me:"
 NEW_LOCATION_TEXT = "І як нове місце називається?"
 NEW_PRODUCT_TEXT = "І як новий продукт називається?"
 NEW_CONTAINER_SYMB_TEXT = "І який символ у нової тари? Одне емодзі"
 NEW_CONTAINER_DESC_TEXT = "І як нова %s тара називається?"
 AMOUNT_MESSAGE = "І скільки ж стало %s з %s в %s? Тільки цифрами"
 ADD_AMOUNT_MESSAGE = "I скільки ж %s з %s зʼявилось в %s?  Тільки цифрами"
-SHOWING_TEXT = "🏠 Ось що в нас є:"
+SHOWING_TEXT = "🏠 Ласкаво просимо до складу! Ось що в нас є:"
 FILTERED_VIEW_TEXT = "🔍 Шукаєм %s:"
 
 # TODO
-REMOVE_CAPTION = "❌"
+# REMOVE_CAPTION = "❌"
 
 # common
-
-def isfloat(num):
-    try:
-        float(num)
-        return True
-    except ValueError:
-        return False
 
 def clear_field(key, context):
 
     if key in context.user_data:
         del context.user_data[key]
-
 
 def reset_data(context: ContextTypes.DEFAULT_TYPE):
 
@@ -115,26 +105,21 @@ def build_data_buttons(constraint = None):
         product_str = next((x for x in products if x[0] == product), None)[1]
         container_str = next((x for x in containers if x[0] == container), None)[1]
         buttons.append([
-            InlineKeyboardButton(text=str(amount), callback_data={
-                UserDataKey.ACTION: Action.UPDATE,
-                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT,
-                'data': id
-            } ),
-            InlineKeyboardButton(text=str(container_str), callback_data={
-                UserDataKey.ACTION: Action.UPDATE,
-                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER,
-                'data': id
-            } ),
-            InlineKeyboardButton(text=str(product_str), callback_data={
-                UserDataKey.ACTION: Action.FILTER,
-                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
-                'data': product
-            }),
             InlineKeyboardButton(text=str(location_str), callback_data={
                 UserDataKey.ACTION: Action.FILTER,
                 UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
                 'data': location
             }),
+            InlineKeyboardButton(text=str(product_str), callback_data={
+                UserDataKey.ACTION: Action.FILTER,
+                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
+                'data': product
+            }),
+            InlineKeyboardButton(text="%s %s" % (amount, container_str), callback_data={
+                UserDataKey.ACTION: Action.UPDATE,
+                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER,
+                'data': id
+            } ),
         ])
     return buttons
 
@@ -147,11 +132,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     buttons.append([
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.ADD], callback_data={
                 UserDataKey.ACTION: Action.ADD,
-                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
+                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER
             }),
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
-                UserDataKey.ACTION: ConversationHandler.END,
-                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
+                UserDataKey.ACTION: ConversationHandler.END
             }),
     ])
 
@@ -169,39 +153,36 @@ async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
     await update.callback_query.answer()
-    user_data = update.callback_query.data
-    for key in user_data:
-        context.user_data[key] = user_data[key]
+    query_data = update.callback_query.data
+    for key in query_data:
+        context.user_data[key] = query_data[key]
 
-    if user_data[UserDataKey.ACTION] == ConversationHandler.END:
+    if query_data[UserDataKey.ACTION] == ConversationHandler.END:
         return await end(update, context)
 
-    elif user_data[UserDataKey.ACTION] == Action.ADD:
+    elif query_data[UserDataKey.ACTION] == Action.ADD:
 
         await select_location(update, context)
         return State.CHOOSING_LOCATION
 
-    elif user_data[UserDataKey.ACTION] == Action.SHOW:
+    elif query_data[UserDataKey.ACTION] == Action.SHOW:
 
         await select_location(update, context)
         return State.CHOOSING_LOCATION
 
-    elif user_data[UserDataKey.ACTION] == Action.UPDATE:
+    elif query_data[UserDataKey.ACTION] == Action.UPDATE:
 
-        if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.AMOUNT:
-            await ask_amount(update, context)
-            return State.ENTERING_AMOUNT
-        elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
-            await select_product(update, context)
-            return State.CHOOSING_PRODUCT
-        elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
-            await select_location(update, context)
-            return State.CHOOSING_LOCATION
-        elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.CONTAINER:
+        if query_data[UserDataKey.FIELD_TYPE] == UserDataKey.CONTAINER:
             await select_container(update, context)
             return State.CHOOSING_CONTAINER
+        elif query_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+            await select_product(update, context)
+            return State.CHOOSING_PRODUCT
+        elif query_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
+            await select_location(update, context)
+            return State.CHOOSING_LOCATION
 
-    elif user_data[UserDataKey.ACTION] == Action.FILTER:
+    elif query_data[UserDataKey.ACTION] == Action.FILTER:
         await filtered_view(update, context)
         return State.FILTERED_VIEW
 
@@ -306,7 +287,7 @@ async def on_container(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if isinstance(selected_container, dict):
         return await add_container(update, context)
 
-    if context.user_data[UserDataKey.ACTION] == Action.ADD:
+    if context.user_data[UserDataKey.ACTION] in (Action.ADD, Action.UPDATE):
         context.user_data[UserDataKey.CONTAINER] = selected_container
         return await ask_amount(update, context)
 
@@ -326,11 +307,13 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
 
         instance = next((x for x in instances if x[0] == user_data['data']), None)
-        ( id, product_id, location_id, amount, date, editor ) = instance
+        ( id, product_id, location_id, amount, container, date, editor ) = instance
         product_name = next((x for x in products if x[0] == product_id), None)[1]
         location_name = next((x for x in locations if x[0] == location_id), None)[1]
-        message = AMOUNT_MESSAGE % (product_name, location_name)
-    
+        container_symbol = next((x for x in containers if x[0] == user_data[UserDataKey.CONTAINER]), None)[1]
+
+        message = AMOUNT_MESSAGE % (container_symbol, product_name, location_name)
+
     elif user_data[UserDataKey.ACTION] == Action.ADD:
 
         product_name = next((x for x in products if x[0] == user_data[UserDataKey.PRODUCT]), None)[1]
@@ -347,8 +330,6 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
-    # await update.callback_query.
-
     user_data = context.user_data
 
     if not update.message.text.isdigit():
@@ -358,8 +339,8 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         dbwrapper.update_value(dbwrapper.INSTANCE_TABLE, 
             {
                 'amount': update.message.text,
-                "date": datetime.now(),
-                "editor": update.effective_user.name,
+                "date": "'%s'" % datetime.now(),
+                "editor": "'%s'" % update.effective_user.name,
             },
             {'id': user_data['data']}
         )
@@ -480,13 +461,15 @@ async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
     await update.callback_query.answer()
-    cb_data = update.callback_query.data
+    query_data = update.callback_query.data
+    for key in query_data:
+        context.user_data[key] = query_data[key]
 
     def constraint(product, location, amount, container, date, editor):
-        if cb_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
-            return product == cb_data['data']
-        if cb_data[UserDataKey.FIELD_TYPE] ==  UserDataKey.LOCATION:
-            return location == cb_data['data']
+        if query_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+            return product == query_data['data']
+        if query_data[UserDataKey.FIELD_TYPE] ==  UserDataKey.LOCATION:
+            return location == query_data['data']
         logging.warning("unexpected filter")
         return True
 
@@ -494,20 +477,20 @@ async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     buttons.append([
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
                 UserDataKey.ACTION: ConversationHandler.END,
-                UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT
+                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER
             }),
     ])
 
     keyboard = InlineKeyboardMarkup(buttons)
 
     message = ""
-    if cb_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+    if query_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
         products = dbwrapper.get_table(dbwrapper.PRODUCT_TABLE)
-        product_str = next((x for x in products if x[0] == cb_data['data']), None)[1]
+        product_str = next((x for x in products if x[0] == query_data['data']), None)[1]
         message = FILTERED_VIEW_TEXT % product_str
-    if cb_data[UserDataKey.FIELD_TYPE] ==  UserDataKey.LOCATION:
+    if query_data[UserDataKey.FIELD_TYPE] ==  UserDataKey.LOCATION:
         locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
-        location_str = next((x for x in locations if x[0] == cb_data['data']), None)[1]
+        location_str = next((x for x in locations if x[0] == query_data['data']), None)[1]
         message = FILTERED_VIEW_TEXT % location_str
 
     await update.callback_query.edit_message_text(text=message, reply_markup=keyboard)
@@ -515,6 +498,20 @@ async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return State.FILTERED_VIEW
 
 async def on_filter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+    logging.info(inspect.stack()[0][0].f_code.co_name)
+
+    # await update.callback_query.answer()
+    query_data = update.callback_query.data
+
+    if query_data[UserDataKey.ACTION] == Action.FILTER:
+        return await filtered_view(update, context)
+
+    elif query_data[UserDataKey.ACTION] == Action.UPDATE:
+        for key in query_data:
+            context.user_data[key] = query_data[key]
+        return await select_container(update, context)
+
     return await start(update, context)
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
