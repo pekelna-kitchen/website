@@ -53,6 +53,7 @@ class UserDataKey(Enum):
     AMOUNT = 5
     CONTAINER_SYMBOL = 6
     FIELD_TYPE = 7
+    LIMIT = 8
 
 ACTION_DESCRIPTIONS = {
     Action.SHOW: "🔍 Показати",
@@ -72,6 +73,8 @@ AMOUNT_MESSAGE = "І скільки ж стало %s з %s в %s? Тільки �
 ADD_AMOUNT_MESSAGE = "I скільки ж %s з %s зʼявилось в %s?  Тільки цифрами, 0 не внесе змін"
 SHOWING_TEXT = "🏠 Ласкаво просимо до складу!\nЯкщо я засну - зайдіть на https://hk-warehouse.herokuapp.com\nОсь що в нас є:"
 FILTERED_VIEW_TEXT = "🔍 Шукаєм %s:"
+LIMIT_CAPTION = "Нагадати коли: %s"
+LIMIT_MESSAGE = "Нагадати за %s коли скільки буде лишатись %s? Тільки цифрами"
 
 # TODO
 # REMOVE_CAPTION = "❌"
@@ -306,13 +309,18 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
 
-        instance = next((x for x in instances if x[0] == user_data['data']), None)
-        ( id, product_id, location_id, amount, container, date, editor ) = instance
-        product_name = next((x for x in products if x[0] == product_id), None)[1]
-        location_name = next((x for x in locations if x[0] == location_id), None)[1]
-        container_symbol = next((x for x in containers if x[0] == user_data[UserDataKey.CONTAINER]), None)[1]
+        if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LIMIT:
+            product_name = next((x for x in products if x[0] == user_data['data']), None)[1]
+            container_symbol = next((x for x in containers if x[0] == user_data[UserDataKey.CONTAINER]), None)[1]
+            message = LIMIT_MESSAGE % (product_name, container_symbol)
+        else:
+            instance = next((x for x in instances if x[0] == user_data['data']), None)
+            ( id, product_id, location_id, amount, container, date, editor ) = instance
+            product_name = next((x for x in products if x[0] == product_id), None)[1]
+            location_name = next((x for x in locations if x[0] == location_id), None)[1]
+            container_symbol = next((x for x in containers if x[0] == user_data[UserDataKey.CONTAINER]), None)[1]
 
-        message = AMOUNT_MESSAGE % (container_symbol, product_name, location_name)
+            message = AMOUNT_MESSAGE % (container_symbol, product_name, location_name)
 
     elif user_data[UserDataKey.ACTION] == Action.ADD:
 
@@ -336,17 +344,43 @@ async def on_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return await ask_amount(update, context)
 
     if user_data[UserDataKey.ACTION] == Action.UPDATE:
-        if int(update.message.text) == 0:
-            dbwrapper.delete_value(dbwrapper.INSTANCE_TABLE, {'id': user_data['data']})
+        if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LIMIT:
+
+            if int(update.message.text) == 0:
+                dbwrapper.delete_value(dbwrapper.LIMIT_TABLE, {'product': user_data['data']})
+            else:
+                limits = dbwrapper.get_table(dbwrapper.LIMIT_TABLE)
+                limit = next((x for x in limits if x[0] == query_data['data']), None)
+
+                if limit:
+                    dbwrapper.update_value(dbwrapper.LIMIT_TABLE,
+                        {
+                            'amount': update.message.text,
+                            "container_id": user_data[UserDataKey.CONTAINER],
+                            "product_id": user_data['data']
+                        },
+                        {'id': limit[0]}
+                    )
+                else:
+                    dbwrapper.insert_value(dbwrapper.LIMIT_TABLE, {
+                        'amount': update.message.text,
+                        "container_id": user_data[UserDataKey.CONTAINER],
+                        "product_id": user_data['data']
+                    },)
+
         else:
-            dbwrapper.update_value(dbwrapper.INSTANCE_TABLE,
-                {
-                    'amount': update.message.text,
-                    "date": "'%s'" % datetime.now(),
-                    "editor": "'%s'" % update.effective_user.name,
-                },
-                {'id': user_data['data']}
-            )
+            if int(update.message.text) == 0:
+                dbwrapper.delete_value(dbwrapper.INSTANCE_TABLE, {'id': user_data['data']})
+            else:
+                dbwrapper.update_value(dbwrapper.INSTANCE_TABLE,
+                    {
+                        'amount': update.message.text,
+                        "date": "'%s'" % datetime.now(),
+                        "editor": "'%s'" % update.effective_user.name,
+                    },
+                    {'id': user_data['data']}
+                )
+
         return await start(update, context)
 
     elif user_data[UserDataKey.ACTION] == Action.ADD:
@@ -477,12 +511,34 @@ async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return True
 
     buttons = build_data_buttons(constraint)
-    buttons.append([
+    extra_buttons = []
+    if query_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+        limits = dbwrapper.get_table(dbwrapper.LIMIT_TABLE)
+        limit = next((x for x in limits if x[1] == query_data['data']), None)
+        limit_str = "ніколи"
+
+        if limit:
+            logging.info(limit)
+            containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
+            container = next((x for x in containers if x[0] == limit[3]), None)
+            logging.info(container)
+            limit_str = "%s %s" % (limit[2], container[1])
+
+        extra_buttons.append(
+            InlineKeyboardButton(text=LIMIT_CAPTION % limit_str, callback_data={
+                    UserDataKey.ACTION: Action.UPDATE,
+                    UserDataKey.FIELD_TYPE: UserDataKey.LIMIT
+                }),
+        )
+    
+    extra_buttons.append(
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
                 UserDataKey.ACTION: ConversationHandler.END,
                 UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER
             }),
-    ])
+    )
+
+    buttons.append(extra_buttons)
 
     keyboard = InlineKeyboardMarkup(buttons)
 
