@@ -3,6 +3,7 @@ import psycopg2
 import os
 import logging
 import inspect
+from datetime import datetime
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
@@ -13,6 +14,9 @@ INSTANCE_TABLE = 'hkdb_instances'
 PRODUCT_TABLE = 'hkdb_products'
 CONTAINER_TABLE = 'hkdb_containers'
 LIMIT_TABLE = 'hkdb_limits'
+TG_USERS_TABLE = 'hkdb_tg_users'
+TG_ADMINS_TABLE = 'hkdb_tg_admins'
+TG_REQUESTS_TABLE = 'hkdb_tg_requests'
 
 def _join_dict(table: dict):
     result = []
@@ -27,6 +31,8 @@ def _query(q: str):
     cur.execute(q)
     # logging.info(cur.statusmessage)
     return conn, cur
+
+# simple queries
 
 def get_table(name):
     conn, cur = _query("SELECT * FROM %s;" % name)
@@ -49,6 +55,44 @@ def insert_value(table_name, data: dict):
 
     conn, cur = _query("INSERT INTO %s (%s) VALUES (%s);" % (table_name, ", ".join(columns), ", ".join(values)))
     conn.commit()
+
+# some more logic over
+
+def update_limit(product_id, amount, container_id):
+    limits = get_table(LIMIT_TABLE)
+    limit = next((x for x in limits if x[0] == product_id), None)
+
+    if not amount:
+        delete_value(LIMIT_TABLE, {'product': user_data[UserDataKey.CURRENT_ID]})
+    elif limit:
+        update_value(LIMIT_TABLE,
+            {
+                'amount': amount,
+                "container_id": container_id,
+                "product_id": product_id
+            },
+            {'id': limit[0]}
+        )
+    else:
+        insert_value(LIMIT_TABLE, {
+            'amount': amount,
+            "container_id": container_id,
+            "product_id": product_id
+        },)
+
+def update_instance(id, user_name, data):
+    instances = get_table(INSTANCE_TABLE)
+    instance = next((x for x in instances if x[0] == id), None)
+
+    data["date"] =  "'%s'" % datetime.now()
+    data["editor"] = "'%s'" % user_name
+
+    if not amount:
+        delete_value(INSTANCE_TABLE, {'id': user_data[UserDataKey.CURRENT_ID]})
+    elif instance:
+        update_value(INSTANCE_TABLE, data, {'id': id} )
+    else:
+        insert_value(INSTANCE_TABLE, data)
 
 # def 
 

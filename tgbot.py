@@ -42,12 +42,6 @@ def main() -> None:
     application = Application.builder().token(TG_TOKEN).arbitrary_callback_data(True).build()
 
     application.add_handler(callbacks.get_handler())
-    # application.updater.start_webhook(
-    #     listen="0.0.0.0",
-    #     port=int(PORT),
-    #     url_path=TG_TOKEN,
-    #     webhook_url='https://hk-warehouse.herokuapp.com/' + TG_TOKEN
-    # )
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
