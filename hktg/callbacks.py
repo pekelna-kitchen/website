@@ -58,9 +58,9 @@ class UserDataKey(Enum):
 ACTION_DESCRIPTIONS = {
     Action.SHOW: "🔍 Показати",
     Action.ADD: "➕ Додати",
-    Action.REMOVE: "Видалити",
-    Action.UPDATE: "Оновити",
-    Action.DONE: "Готово",
+    Action.REMOVE: "➖ Видалити",
+    Action.UPDATE: "🔃 Оновити",
+    Action.DONE: "✅ Готово",
     # Action.FILTER: "Фільтр",
 }
 
