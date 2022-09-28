@@ -3,15 +3,31 @@
 
 {% block content %}
 <div class="container">
-<a href="https://t.me/HellKitchenStorageBot" >НАШ TELEGRAM БОТ!</a>
+<a href="https://t.me/HellKitchenStorageBot" >
+  <img src="{% static 'qrcode.png' %}" width=100" height=100></a>
 </div>
 
 <div class="container">
-  <ul>
-      {% for instance in instances %}
-        <li>{{ instance.product.name }}: {{ instance.amount }} {{ instance.container.symbol }} ( {{ instance.location.name }} )</li>
-      {% endfor %}
-  </ul>
+  <table>
+    <tr>
+      <th>Продукт</th>
+      <th>Кількість</th> 
+      <th>Ємність</th>
+      <th>Місце</th>
+      <th>Автор останньої зміни</th>
+      <th>Дата останньої зміни</th>
+    </tr>
+    {% for i, human_date in instances %}
+    <tr>
+      <td>{{ i.product.name }}:  </td>
+      <td>{{ i.amount }}</td>
+      <td>{{ i.container.symbol }}</td>
+      <td>{{ i.location.name }}</td>
+      <td>{{ i.editor }}</td>
+      <td>{{ human_date }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 
 {% endblock %}

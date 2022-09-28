@@ -42,7 +42,8 @@ class Action(Enum):
     REMOVE = 3
     UPDATE = 4
     FILTER = 5
-    DONE = ConversationHandler.END
+    HOME = 6
+    EXIT = ConversationHandler.END
 
 # userdata keys for values
 class UserDataKey(Enum):
@@ -60,21 +61,35 @@ ACTION_DESCRIPTIONS = {
     Action.ADD: "➕ Додати",
     Action.REMOVE: "➖ Видалити",
     Action.UPDATE: "🔃 Оновити",
-    Action.DONE: "✅ Готово",
-    # Action.FILTER: "Фільтр",
+    Action.EXIT: "🚪 Вийти",
+    Action.HOME: "🏠 Додому",
 }
 
-COMEBACK_TEXT = "Повертайся скоріш! Для цього використай /start"
+
+
+SHOWING_TEXT = '''🏠 Ласкаво прошу до складу_холоду!
+🌶️🧑‍🍳 Куди підемо?
+🏎️😏 Або нам щось привезли?'''
+
+COMEBACK_TEXT = '''Повертайся скоріш! Для цього використай /start
+
+Якщо я засну - зайди на https://hk-warehouse.herokuapp.com'''
+
 NEW_LOCATION_TEXT = "І як нове місце називається?"
 NEW_PRODUCT_TEXT = "І як новий продукт називається?"
-NEW_CONTAINER_SYMB_TEXT = "І який символ у нової тари? Одне емодзі"
+NEW_CONTAINER_SYMB_TEXT = '''І який символ у нової тари?
+
+Одне емодзі в студію, будьте любʼязні'''
 NEW_CONTAINER_DESC_TEXT = "І як нова %s тара називається?"
-AMOUNT_MESSAGE = "І скільки ж стало %s з %s в %s? Тільки цифрами, 0 видалить запис"
-ADD_AMOUNT_MESSAGE = "I скільки ж %s з %s зʼявилось в %s?  Тільки цифрами, 0 не внесе змін"
-SHOWING_TEXT = "🏠 Ласкаво просимо до складу!\nЯкщо я засну - зайдіть на https://hk-warehouse.herokuapp.com\nОсь що в нас є:"
+
+AMOUNT_MESSAGE = '''І скільки ж стало %s з %s в %s?
+Тільки цифрами, 0 видалить запис'''
+ADD_AMOUNT_MESSAGE = '''I скільки ж %s з %s зʼявилось в %s?
+Тільки цифрами, 0 не внесе змін'''
+
 FILTERED_VIEW_TEXT = "🔍 Шукаєм %s:"
-LIMIT_CAPTION = "Нагадати коли: %s"
-LIMIT_MESSAGE = "Нагадати за %s коли скільки буде лишатись %s? Тільки цифрами"
+LIMIT_CAPTION = "🔔 Нагадати коли: %s"
+LIMIT_MESSAGE = "🔔 Нагадати за %s коли скільки буде лишатись %s? Тільки цифрами"
 
 # TODO
 # REMOVE_CAPTION = "❌"
@@ -98,7 +113,7 @@ def reset_data(context: ContextTypes.DEFAULT_TYPE):
     for key in UserDataKey:
         clear_field(key, context)
 
-def build_data_buttons(constraint = None):
+def build_data_buttons(constraint = None, location_button = False, product_button = False):
 
     buttons = []
 
@@ -108,11 +123,6 @@ def build_data_buttons(constraint = None):
     containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
 
     # for l_id, l_name in locations:
-    # InlineKeyboardButton(text=str(location_str), callback_data={
-    #     UserDataKey.ACTION: Action.FILTER,
-    #     UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
-    #     'data': location
-    # }),
     #     new_lst = list(list(i) for match, i in it.groupby(characters_list, lambda p: p == '----') if not match)
 
     for ( id, product, location, amount, container,  date, editor ) in instances:
@@ -123,11 +133,19 @@ def build_data_buttons(constraint = None):
         product_str = next((x for x in products if x[0] == product), None)[1]
         container_str = next((x for x in containers if x[0] == container), None)[1]
 
-        buttons.append(InlineKeyboardButton(text=str(product_str), callback_data={
-            UserDataKey.ACTION: Action.FILTER,
-            UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
-            'data': product
-        }))
+        if location_button:
+            buttons.append(InlineKeyboardButton(text=str(location_str), callback_data={
+                UserDataKey.ACTION: Action.FILTER,
+                UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
+                'data': location
+            }))
+
+        if product_button:
+            buttons.append(InlineKeyboardButton(text=str(product_str), callback_data={
+                UserDataKey.ACTION: Action.FILTER,
+                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
+                'data': product
+            }))
         buttons.append(InlineKeyboardButton(text="%s %s" % (amount, container_str), callback_data={
             UserDataKey.ACTION: Action.UPDATE,
             UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER,
@@ -138,6 +156,11 @@ def build_data_buttons(constraint = None):
 
     return split_list(buttons, chunk_size)
 
+def action_button(action: Action, callback_data = {}):
+
+    callback_data[ UserDataKey.ACTION ] = action
+    return InlineKeyboardButton(text=ACTION_DESCRIPTIONS[action], callback_data=callback_data)
+
 # ask for action
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
@@ -145,24 +168,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     buttons = []
 
+    reset_data(context)
+
     locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
     for l_id, l_name in locations:
-        buttons.append([
+        buttons.append(
             InlineKeyboardButton(text=str(l_name), callback_data={
                 UserDataKey.ACTION: Action.FILTER,
                 UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
                 'data': l_id
             }),
-        ])
+        )
+
+    buttons = split_list(buttons, 2)
 
     buttons.append([
-        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.ADD], callback_data={
-                UserDataKey.ACTION: Action.ADD,
-                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER
-            }),
-        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
-                UserDataKey.ACTION: ConversationHandler.END
-            }),
+        action_button(Action.ADD, {UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER}),
+        action_button(Action.EXIT),
     ])
 
     keyboard = InlineKeyboardMarkup(buttons)
@@ -183,34 +205,26 @@ async def on_storage_action(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     for key in query_data:
         context.user_data[key] = query_data[key]
 
-    if query_data[UserDataKey.ACTION] == ConversationHandler.END:
+    if query_data[UserDataKey.ACTION] == Action.EXIT:
         return await end(update, context)
 
     elif query_data[UserDataKey.ACTION] == Action.ADD:
-
-        await select_location(update, context)
-        return State.CHOOSING_LOCATION
+        return await select_location(update, context)
 
     elif query_data[UserDataKey.ACTION] == Action.SHOW:
-
-        await select_location(update, context)
-        return State.CHOOSING_LOCATION
+        return await select_location(update, context)
 
     elif query_data[UserDataKey.ACTION] == Action.UPDATE:
 
         if query_data[UserDataKey.FIELD_TYPE] == UserDataKey.CONTAINER:
-            await select_container(update, context)
-            return State.CHOOSING_CONTAINER
+            return await select_container(update, context)
         elif query_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
-            await select_product(update, context)
-            return State.CHOOSING_PRODUCT
+            return await select_product(update, context)
         elif query_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
-            await select_location(update, context)
-            return State.CHOOSING_LOCATION
+            return await select_location(update, context)
 
     elif query_data[UserDataKey.ACTION] == Action.FILTER:
-        await filtered_view(update, context)
-        return State.FILTERED_VIEW
+        return await filtered_view(update, context)
 
 
 async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -222,9 +236,7 @@ async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     for location_id, location_name in locations:
         buttons.append(InlineKeyboardButton(text=location_name, callback_data=location_id))
 
-    buttons.append(InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
-        "action": Action.ADD
-    }))
+    buttons.append(action_button(Action.ADD))
 
     buttons = split_list(buttons, 2)
 
@@ -260,11 +272,7 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     for product_id, product_name in products:
         buttons.append(InlineKeyboardButton(text=product_name, callback_data=product_id))
 
-    buttons.append(
-        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
-            "action": Action.ADD
-        })
-    )
+    buttons.append(action_button(Action.ADD))
 
     buttons = split_list(buttons, 2)
 
@@ -302,9 +310,7 @@ async def select_container(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             InlineKeyboardButton(text="%s %s" % (containers_symbol, containers_desc), callback_data=container_id),
         )
 
-    buttons.append(InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
-        "action": Action.ADD
-    }))
+    buttons.append(action_button(Action.ADD))
 
     buttons = split_list(buttons, 2)
 
@@ -542,7 +548,11 @@ async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         logging.warning("unexpected filter")
         return True
 
-    buttons = build_data_buttons(constraint)
+    buttons = build_data_buttons(
+        constraint,
+        query_data[UserDataKey.FIELD_TYPE] != UserDataKey.LOCATION,
+        query_data[UserDataKey.FIELD_TYPE] != UserDataKey.PRODUCT
+    )
     extra_buttons = []
     if query_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
         limits = dbwrapper.get_table(dbwrapper.LIMIT_TABLE)
@@ -564,9 +574,8 @@ async def filtered_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
     
     extra_buttons.append(
-        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.DONE], callback_data={
-                UserDataKey.ACTION: ConversationHandler.END,
-                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER
+        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.HOME], callback_data={
+                UserDataKey.ACTION: Action.HOME
             }),
     )
 
@@ -632,21 +641,11 @@ def get_handler():
 
         # exit state -> handler
         states={
-            State.CHOOSING_ACTION: [
-                CallbackQueryHandler(on_storage_action),
-            ],
-            State.CHOOSING_LOCATION: [
-                CallbackQueryHandler(on_location),
-            ],
-            State.CHOOSING_PRODUCT: [
-                CallbackQueryHandler(on_product),
-            ],
-            State.CHOOSING_CONTAINER: [
-                CallbackQueryHandler(on_container),
-            ],
-            State.ENTERING_LOCATION: [
-                MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_location )
-            ],
+            State.CHOOSING_ACTION: [ CallbackQueryHandler(on_storage_action) ],
+            State.CHOOSING_LOCATION: [ CallbackQueryHandler(on_location) ],
+            State.CHOOSING_PRODUCT: [ CallbackQueryHandler(on_product) ],
+            State.CHOOSING_CONTAINER: [ CallbackQueryHandler(on_container) ],
+            State.ENTERING_LOCATION: [ MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_location ) ],
             State.ENTERING_PRODUCT: [
                 MessageHandler( filters.TEXT & ~filters.COMMAND, on_add_product )
             ],
