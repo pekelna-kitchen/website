@@ -60,7 +60,7 @@ ACTION_DESCRIPTIONS = {
     Action.ADD: "➕ Додати",
     Action.REMOVE: "Видалити",
     Action.UPDATE: "Оновити",
-    Action.DONE: "Закінчити",
+    Action.DONE: "Готово",
     # Action.FILTER: "Фільтр",
 }
 
@@ -81,6 +81,13 @@ LIMIT_MESSAGE = "Нагадати за %s коли скільки буде ли�
 
 # common
 
+def split_list(source:list, count:int):
+    result = []
+    for i in range(0, len(source), count):
+        result.append(source[i:i+count])
+    return result
+
+
 def clear_field(key, context):
 
     if key in context.user_data:
@@ -100,6 +107,14 @@ def build_data_buttons(constraint = None):
     products = dbwrapper.get_table(dbwrapper.PRODUCT_TABLE)
     containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
 
+    # for l_id, l_name in locations:
+    # InlineKeyboardButton(text=str(location_str), callback_data={
+    #     UserDataKey.ACTION: Action.FILTER,
+    #     UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
+    #     'data': location
+    # }),
+    #     new_lst = list(list(i) for match, i in it.groupby(characters_list, lambda p: p == '----') if not match)
+
     for ( id, product, location, amount, container,  date, editor ) in instances:
         if constraint and not constraint(product, location, amount, container, date, editor):
             continue
@@ -107,31 +122,39 @@ def build_data_buttons(constraint = None):
         location_str = next((x for x in locations if x[0] == location), None)[1]
         product_str = next((x for x in products if x[0] == product), None)[1]
         container_str = next((x for x in containers if x[0] == container), None)[1]
-        buttons.append([
-            InlineKeyboardButton(text=str(location_str), callback_data={
-                UserDataKey.ACTION: Action.FILTER,
-                UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
-                'data': location
-            }),
-            InlineKeyboardButton(text=str(product_str), callback_data={
-                UserDataKey.ACTION: Action.FILTER,
-                UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
-                'data': product
-            }),
-            InlineKeyboardButton(text="%s %s" % (amount, container_str), callback_data={
-                UserDataKey.ACTION: Action.UPDATE,
-                UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER,
-                'data': id
-            } ),
-        ])
-    return buttons
+
+        buttons.append(InlineKeyboardButton(text=str(product_str), callback_data={
+            UserDataKey.ACTION: Action.FILTER,
+            UserDataKey.FIELD_TYPE: UserDataKey.PRODUCT,
+            'data': product
+        }))
+        buttons.append(InlineKeyboardButton(text="%s %s" % (amount, container_str), callback_data={
+            UserDataKey.ACTION: Action.UPDATE,
+            UserDataKey.FIELD_TYPE: UserDataKey.CONTAINER,
+            'data': id
+        } ))
+
+    chunk_size = 2 * 2 # buttons count for one entry
+
+    return split_list(buttons, chunk_size)
 
 # ask for action
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     logging.info(inspect.stack()[0][0].f_code.co_name)
 
-    buttons = build_data_buttons()
+    buttons = []
+
+    locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
+    for l_id, l_name in locations:
+        buttons.append([
+            InlineKeyboardButton(text=str(l_name), callback_data={
+                UserDataKey.ACTION: Action.FILTER,
+                UserDataKey.FIELD_TYPE: UserDataKey.LOCATION,
+                'data': l_id
+            }),
+        ])
+
     buttons.append([
         InlineKeyboardButton(text=ACTION_DESCRIPTIONS[Action.ADD], callback_data={
                 UserDataKey.ACTION: Action.ADD,
@@ -197,11 +220,13 @@ async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     locations = dbwrapper.get_table(dbwrapper.LOCATION_TABLE)
     buttons = []
     for location_id, location_name in locations:
-        buttons.append([InlineKeyboardButton(text=location_name, callback_data=location_id),])
+        buttons.append(InlineKeyboardButton(text=location_name, callback_data=location_id))
 
-    buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
+    buttons.append(InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
         "action": Action.ADD
-    })])
+    }))
+
+    buttons = split_list(buttons, 2)
 
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -233,11 +258,16 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     buttons = []
     for product_id, product_name in products:
-        buttons.append([InlineKeyboardButton(text=product_name, callback_data=product_id),])
+        buttons.append(InlineKeyboardButton(text=product_name, callback_data=product_id))
 
-    buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
-        "action": Action.ADD
-    })])
+    buttons.append(
+        InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
+            "action": Action.ADD
+        })
+    )
+
+    buttons = split_list(buttons, 2)
+
     keyboard = InlineKeyboardMarkup(buttons)
 
     await update.callback_query.edit_message_text(text="Виберіть продукцію:", reply_markup=keyboard)
@@ -268,13 +298,15 @@ async def select_container(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     containers = dbwrapper.get_table(dbwrapper.CONTAINER_TABLE)
     buttons = []
     for container_id, containers_symbol, containers_desc in containers:
-        buttons.append([
+        buttons.append(
             InlineKeyboardButton(text="%s %s" % (containers_symbol, containers_desc), callback_data=container_id),
-        ])
+        )
 
-    buttons.append([InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
+    buttons.append(InlineKeyboardButton(text=ACTION_DESCRIPTIONS[ Action.ADD ], callback_data={
         "action": Action.ADD
-    })])
+    }))
+
+    buttons = split_list(buttons, 2)
 
     keyboard = InlineKeyboardMarkup(buttons)
 
