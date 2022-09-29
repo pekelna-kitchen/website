@@ -2,8 +2,11 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hktg.constants import UserDataKey
-from hktg import dbwrapper
+from hktg.constants import (
+    State,
+    UserDataKey
+)
+from hktg import dbwrapper, callbacks
 
 class AddProduct:
     @staticmethod
@@ -18,4 +21,4 @@ class AddProduct:
     async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         dbwrapper.insert_value(dbwrapper.Tables.PRODUCT, {
                                "name": update.message.text})
-        return await Home.ask(update, context)
+        return await callbacks.Home.ask(update, context)

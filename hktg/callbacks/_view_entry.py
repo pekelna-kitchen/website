@@ -2,22 +2,29 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hktg.constants import UserDataKey
-from hktg import dbwrapper
+from hktg.constants import (
+    Action,
+    UserDataKey,
+    State
+)
+from hktg import dbwrapper, util, callbacks
+from hktg.strings import ENTRY_MESSAGE
 
 class ViewEntry:
 
     @staticmethod
     async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
         query_data = update.callback_query.data
 
-        instance = find_in_table(dbwrapper.INSTANCE_TABLE, 0, query_data[UserDataKey.CURRENT_ID])
+        instance = util.find_in_table(dbwrapper.Tables.INSTANCE, 0, query_data[UserDataKey.CURRENT_ID])
         (id, product_id, location_id, amount, container, date, editor) = instance
 
-        product_name = find_in_table(dbwrapper.PRODUCT_TABLE, 0, product_id)[1]
-        location_name = find_in_table(dbwrapper.LOCATION_TABLE, 0, location_id)[1]
-        container_symbol = find_in_table(dbwrapper.CONTAINER_TABLE, 0, container)[1]
+        product_name = util.find_in_table(dbwrapper.Tables.PRODUCT, 0, product_id)[1]
+        location_name = util.find_in_table(dbwrapper.Tables.LOCATION, 0, location_id)[1]
+        container_symbol = util.find_in_table(dbwrapper.Tables.CONTAINER, 0, container)[1]
 
         buttons = [[
             InlineKeyboardButton(
@@ -54,5 +61,5 @@ class ViewEntry:
     @staticmethod
     async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
-        return await Home.ask(update, context)
+        return await callbacks.Home.ask(update, context)
 

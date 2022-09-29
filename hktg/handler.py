@@ -6,7 +6,6 @@
 from telegram import (
     # ReplyKeyboardMarkup,
     # ReplyKeyboardRemove,
-    # InlineKeyboardButton,
     # InlineKeyboardMarkup,
     Update
 )
@@ -19,50 +18,38 @@ from telegram.ext import (
     filters
 )
 
-from hktg import dbwrapper
-from hktg.callbacks import (
-    home,
-    filtered_view,
-    view_entry,
-    select_container,
-    select_product,
-    add_location,
-    add_product,
-    add_container_symbol,
-    add_container_description,
-    ask_amount
-)
+from hktg import dbwrapper, callbacks
 from hktg.constants import *
 
 def get():
 
     return ConversationHandler(
-        entry_points=[CommandHandler("start", home.Home.ask)],
+        entry_points=[CommandHandler("start", callbacks.Home.ask)],
 
         states={
-            State.CHOOSING_ACTION: [CallbackQueryHandler(home.Home.answer)],
+            State.CHOOSING_ACTION: [CallbackQueryHandler(callbacks.Home.answer)],
             # State.CHOOSING_LOCATION: [CallbackQueryHandler(select_location.SelectLocation.answer)],
-            State.CHOOSING_PRODUCT: [CallbackQueryHandler(select_product.SelectProduct.answer)],
-            State.CHOOSING_CONTAINER: [CallbackQueryHandler(select_container.SelectContainer.answer)],
-            State.ENTERING_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_location.AddLocation.answer)],
+            State.CHOOSING_PRODUCT: [CallbackQueryHandler(callbacks.SelectProduct.answer)],
+            State.CHOOSING_CONTAINER: [CallbackQueryHandler(callbacks.SelectContainer.answer)],
+            State.ENTERING_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, callbacks.AddLocation.answer)],
             State.ENTERING_PRODUCT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, add_product.AddProduct.answer)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, callbacks.AddProduct.answer)
             ],
             State.ENTERING_CONTAINER_SYMBOL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, add_container_symbol.AddContainerSymbol.answer)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, callbacks.AddContainerSymbol.answer)
             ],
             State.ENTERING_CONTAINER_DESCRIPTION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, add_container_description.AddContainerDescription.answer)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, callbacks.AddContainerDescription.answer)
             ],
             State.ENTERING_AMOUNT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, ask_amount.AskAmount.answer)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, callbacks.AskAmount.answer)
             ],
-            State.FILTERED_VIEW: [CallbackQueryHandler(filtered_view.FilteredView.answer)],
-            State.VIEWING_ENTRY: [CallbackQueryHandler(view_entry.ViewEntry.answer)],
+            State.FILTERED_VIEW: [CallbackQueryHandler(callbacks.FilteredView.answer)],
+            State.VIEWING_ENTRY: [CallbackQueryHandler(callbacks.ViewEntry.answer)],
         },
         fallbacks=[
-            CommandHandler("stop", home.Home.stop),
-            CallbackQueryHandler(home.Home.stop)
+            CommandHandler("stop", callbacks.Home.stop),
+            CallbackQueryHandler(callbacks.Home.stop)
         ],
         allow_reentry=True
     )

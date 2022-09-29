@@ -2,9 +2,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hktg.constants import UserDataKey
-from hktg import dbwrapper
-from hktg.util import reset_data
+from hktg.constants import (
+    Action,
+    State,
+    UserDataKey
+)
+from hktg import dbwrapper, util, callbacks
 
 class AskAmount:
     @staticmethod
@@ -20,20 +23,20 @@ class AskAmount:
 
         if user_data[UserDataKey.ACTION] == Action.MODIFY:
             if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LIMIT:
-                product_name = find_in_table(
+                product_name = util.find_in_table(
                     products, 0, user_data[UserDataKey.CURRENT_ID])
-                container_symbol = find_in_table(
+                container_symbol = util.find_in_table(
                     containers, 0, user_data[UserDataKey.CONTAINER])[1]
                 message = LIMIT_MESSAGE % (product_name, container_symbol)
 
             else:
-                instance = find_in_table(
+                instance = util.find_in_table(
                     instances, 0, user_data[UserDataKey.CURRENT_ID])
                 (id, product_id, location_id, amount,
                  container, date, editor) = instance
-                product_name = find_in_table(products, 0, product_id)[1]
-                location_name = find_in_table(locations, 0, location_id)[1]
-                container_symbol = find_in_table(
+                product_name = util.find_in_table(products, 0, product_id)[1]
+                location_name = util.find_in_table(locations, 0, location_id)[1]
+                container_symbol = util.find_in_table(
                     containers, 0, user_data[UserDataKey.CONTAINER])[1]
 
                 message = AMOUNT_MESSAGE % (
@@ -41,11 +44,11 @@ class AskAmount:
 
         elif user_data[UserDataKey.ACTION] == Action.CREATE:
 
-            product_name = find_in_table(
+            product_name = util.find_in_table(
                 products, 0, user_data[UserDataKey.CONTAINER])[1]
-            location_name = find_in_table(
+            location_name = util.find_in_table(
                 locations, 0, user_data[UserDataKey.LOCATION])[1]
-            container_symbol = find_in_table(
+            container_symbol = util.find_in_table(
                 containers, 0, user_data[UserDataKey.CONTAINER])[1]
 
             message = ADD_AMOUNT_MESSAGE % (
@@ -61,7 +64,7 @@ class AskAmount:
         user_data = context.user_data
 
         if not update.message.text.isdigit():
-            return await AskAmount.ask(update, context)
+            return await callbacks.AskAmount.ask(update, context)
 
         if user_data[UserDataKey.ACTION] == Action.MODIFY:
             if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LIMIT:
@@ -77,7 +80,7 @@ class AskAmount:
                     update.effective_user.name
                 )
 
-            return await Home.ask(update, context)
+            return await callbacks.Home.ask(update, context)
 
         elif user_data[UserDataKey.ACTION] == Action.CREATE:
             dbwrapper.update_instance(None, update.effective_user.name, {
@@ -86,12 +89,12 @@ class AskAmount:
                 "container_id": user_data[UserDataKey.CONTAINER],
                 "amount": update.message.text,
             })
-            return await Home.ask(update, context)
+            return await callbacks.Home.ask(update, context)
 
         else:
             logging.error("Unexpected action: %s" %
                           user_data[UserDataKey.ACTION])
 
-        reset_data(context)
+        # util.reset_data(context)
 
-        return await Home.ask(update, context)
+        return await callbacks.Home.ask(update, context)

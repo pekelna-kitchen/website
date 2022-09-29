@@ -2,8 +2,11 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hktg.constants import UserDataKey
-from hktg import dbwrapper
+from hktg.constants import (
+    State,
+    UserDataKey
+)
+from hktg import dbwrapper, callbacks
 
 
 class AddLocation:
@@ -21,5 +24,5 @@ class AddLocation:
         dbwrapper.insert_value(dbwrapper.Tables.LOCATION, {
                                "name": update.message.text})
         # update.get_bot().send_message(chat_id, text)
-        return await Home.ask(update, context)
+        return await callbacks.Home.ask(update, context)
 

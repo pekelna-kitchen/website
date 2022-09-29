@@ -4,7 +4,12 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from hktg.constants import UserDataKey
-from hktg import dbwrapper
+from hktg import dbwrapper, callbacks
+from hktg.constants import (
+    Action,
+    State,
+    UserDataKey
+)
 
 class AddContainerSymbol:
     @staticmethod
@@ -29,11 +34,11 @@ class AddContainerSymbol:
                                    },
                                    {'id': user_data[UserDataKey.CURRENT_ID]}
                                    )
-            return await Home.ask(update, context)
+            return await callbacks.Home.ask(update, context)
 
         elif user_data[UserDataKey.ACTION] == Action.CREATE:
             user_data[UserDataKey.CONTAINER_SYMBOL] = update.message.text
-            return await AddContainerDescription.ask(update, context)
+            return await callbacks.AddContainerDescription.ask(update, context)
 
         else:
             logging.error("Unexpected action: %s" %

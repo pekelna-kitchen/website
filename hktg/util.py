@@ -1,11 +1,13 @@
 
-from telegram import Update
+from telegram import (
+    InlineKeyboardButton,
+    Update
+)
 from telegram.ext import ContextTypes
 
 from .constants import (
     UserDataKey,
     Action,
-    ActionDescriptions
 )
 
 def split_list(source: list, count: int):
@@ -29,6 +31,9 @@ def reset_data(context: ContextTypes.DEFAULT_TYPE):
 
 def action_button(action: Action, callback_data={}):
 
+    from telegram import InlineKeyboardButton
+    from .constants import ActionDescriptions
+
     callback_data[UserDataKey.ACTION] = action
     return InlineKeyboardButton(text=ActionDescriptions[action], callback_data=callback_data)
 
@@ -39,3 +44,4 @@ def find_in_table(table_name, index, comparable):
 
     table = get_table(table_name)
     return next((x for x in table if x[index] == comparable), None)
+ 
