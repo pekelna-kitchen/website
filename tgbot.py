@@ -3,7 +3,7 @@
 
 import logging
 import os
-from hktg import callbacks
+from hktg import handler
 
 from telegram import __version__ as TG_VER
 
@@ -25,7 +25,8 @@ from telegram.ext import Application
 
 from warnings import filterwarnings
 from telegram.warnings import PTBUserWarning
-filterwarnings(action="ignore", message=r".*CallbackQueryHandler",category=PTBUserWarning)
+filterwarnings(action="ignore", message=r".*CallbackQueryHandler",
+               category=PTBUserWarning)
 
 TG_TOKEN = os.environ["TG_TOKEN"]
 PORT = int(os.environ.get('PORT', '8443'))
@@ -39,9 +40,10 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    application = Application.builder().token(TG_TOKEN).arbitrary_callback_data(True).build()
+    application = Application.builder().token(
+        TG_TOKEN).arbitrary_callback_data(True).build()
 
-    application.add_handler(callbacks.get_handler())
+    application.add_handler(handler.get())
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
