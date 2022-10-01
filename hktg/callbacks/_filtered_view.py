@@ -8,7 +8,7 @@ from hktg.constants import (
     State
 )
 from hktg import dbwrapper, util, callbacks
-from hktg.strings import FILTERED_VIEW_TEXT
+from hktg.strings import FILTERED_VIEW_TEXT, UNFILTERED_TEXT
 
 class FilteredView:
     @staticmethod
@@ -44,24 +44,27 @@ class FilteredView:
                 UserDataKey.ACTION: Action.VIEW_ENTRY,
                 UserDataKey.CURRENT_ID: id
             }))
-        buttons = util.split_list(buttons, 2)
 
-        buttons.append([util.action_button(Action.MODIFY), util.action_button(Action.HOME)])
+        buttons = util.split_list(buttons, 3)
+
+        buttons.append([
+            util.action_button(Action.CREATE),
+            util.action_button(Action.HOME)])
 
         keyboard = InlineKeyboardMarkup(buttons)
 
-        message = "Ось що є:"
-        if UserDataKey.FIELD_TYPE in user_data:
-            if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
-                product_str = util.find_in_table(
-                    dbwrapper.PRODUCT, 0, user_data[UserDataKey.CURRENT_ID])[1]
-                message = FILTERED_VIEW_TEXT % product_str
+        message = None
+        # if UserDataKey.FIELD_TYPE in user_data:
+        #     if user_data[UserDataKey.FIELD_TYPE] == UserDataKey.PRODUCT:
+        #         product_str = util.find_in_table(
+        #             dbwrapper.Tables.PRODUCT, 0, user_data[UserDataKey.CURRENT_ID])[1]
+        #         message = FILTERED_VIEW_TEXT % product_str
 
-            elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
-                location_str = util.find_in_table(dbwrapper.Tables.LOCATION, 0, user_data[UserDataKey.CURRENT_ID])[1]
-                message = FILTERED_VIEW_TEXT % location_str
+        #     elif user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
+        #         location_str = util.find_in_table(dbwrapper.Tables.LOCATION, 0, user_data[UserDataKey.CURRENT_ID])[1]
+        #         message = FILTERED_VIEW_TEXT % location_str
 
-        await update.callback_query.edit_message_text(text=message, reply_markup=keyboard)
+        await update.callback_query.edit_message_text(text=message or UNFILTERED_TEXT, reply_markup=keyboard)
 
         return State.FILTERED_VIEW
 
@@ -74,13 +77,11 @@ class FilteredView:
         for key in query_data:
             context.user_data[key] = query_data[key]
 
-        if query_data[UserDataKey.ACTION] == Action.FILTER:
-            return await callbacks.FilteredView.ask(update, context)
+        mappings = {
+            Action.FILTER: callbacks.FilteredView.ask,
+            Action.CREATE: callbacks.ViewEntry.ask,
+            Action.VIEW_ENTRY: callbacks.ViewEntry.ask,
+            Action.HOME: callbacks.Home.ask
+        }
 
-        elif query_data[UserDataKey.ACTION] == Action.CREATE:
-            return await callbacks.SelectContainer.ask(update, context)
-
-        elif query_data[UserDataKey.ACTION] == Action.VIEW_ENTRY:
-            return await callbacks.ViewEntry.ask(update, context)
-
-        return await callbacks.Home.ask(update, context)
+        return await mappings[context.user_data[UserDataKey.ACTION]](update, context)

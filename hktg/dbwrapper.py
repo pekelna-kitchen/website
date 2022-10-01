@@ -28,7 +28,7 @@ def _join_dict(table: dict):
 def _query(q: str):
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
-    logging.info("SQL: %s" % q)
+    logging.debug("SQL: %s" % q)
     cur.execute(q)
     # logging.info(cur.statusmessage)
     return conn, cur

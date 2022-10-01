@@ -82,19 +82,8 @@ class AskAmount:
 
             return await callbacks.Home.ask(update, context)
 
-        elif user_data[UserDataKey.ACTION] == Action.CREATE:
-            dbwrapper.update_instance(None, update.effective_user.name, {
-                "product_id": user_data[UserDataKey.PRODUCT],
-                "location_id": user_data[UserDataKey.LOCATION],
-                "container_id": user_data[UserDataKey.CONTAINER],
-                "amount": update.message.text,
-            })
-            return await callbacks.Home.ask(update, context)
-
         else:
             logging.error("Unexpected action: %s" %
                           user_data[UserDataKey.ACTION])
-
-        # util.reset_data(context)
 
         return await callbacks.Home.ask(update, context)

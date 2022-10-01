@@ -45,3 +45,4 @@ def find_in_table(table_name, index, comparable):
     table = get_table(table_name)
     return next((x for x in table if x[index] == comparable), None)
  
+# Action.MODIFY: lambda u, c: update_mapping[query_data[UserDataKey.ACTION]](u, c)

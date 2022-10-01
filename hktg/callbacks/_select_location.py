@@ -8,6 +8,7 @@ from hktg.constants import (
     UserDataKey
 )
 from hktg import dbwrapper, util, callbacks
+from hktg.strings import SELECT_LOCATION_TEXT
 
 class SelectLocation:
     @staticmethod
@@ -31,22 +32,26 @@ class SelectLocation:
 
         keyboard = InlineKeyboardMarkup(buttons)
 
-        await update.callback_query.edit_message_text(text="Виберіть продукцію:", reply_markup=keyboard)
+        await update.callback_query.edit_message_text(text=SELECT_LOCATION_TEXT, reply_markup=keyboard)
 
-        return State.CHOOSING_PRODUCT
+        return State.CHOOSING_LOCATION
 
     @staticmethod
     async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
         selected_product = update.callback_query.data
+        user_data = context.user_data
 
         if isinstance(selected_product, dict):
             return await callbacks.AddProduct.ask(update, context)
 
         if context.user_data[UserDataKey.ACTION] == Action.MODIFY:
             if context.user_data[UserDataKey.FIELD_TYPE] == UserDataKey.LOCATION:
-                dbwrapper.update_value(dbwrapper.Tables.INSTANCE, {'product_id': selected_product}, {
-                                       'id': context.user_data[UserDataKey.CURRENT_ID]})
+                dbwrapper.update_value(dbwrapper.Tables.INSTANCE, {
+                    'location_id': selected_location
+                }, {
+                    'id': context.user_data[UserDataKey.CURRENT_ID]
+                })
             else:
                 logging.error("Unexpected datafield %s" %
                               context.user_data[UserDataKey.FIELD_TYPE])

@@ -9,7 +9,7 @@ from hktg.constants import (
 )
 from hktg import dbwrapper, util, callbacks
 
-from hktg.strings import SHOWING_TEXT
+from hktg.strings import SHOWING_TEXT, COMEBACK_TEXT
 
 class Home:
     @staticmethod
@@ -28,18 +28,12 @@ class Home:
 
         buttons = []
         if is_user:
-            buttons.append([
-                util.action_button(
-                    Action.CREATE, {UserDataKey.FIELD_TYPE: UserDataKey.AMOUNT})
-            ])
+            buttons.append(util.action_button(Action.CREATE, {}))
 
-        buttons.append([
-            util.action_button(Action.FILTER, {}),
-            util.action_button(Action.EXIT)],
-        )
-        
+        buttons.append(util.action_button(Action.FILTER, {}))
+        buttons.append(util.action_button(Action.EXIT, {}))
 
-        keyboard = InlineKeyboardMarkup(buttons)
+        keyboard = InlineKeyboardMarkup([buttons])
 
         if update.callback_query:
             await update.callback_query.edit_message_text(text=SHOWING_TEXT, reply_markup=keyboard)
@@ -55,18 +49,10 @@ class Home:
         for key in query_data:
             context.user_data[key] = query_data[key]
 
-        update_mapping = {
-            UserDataKey.CONTAINER: callbacks.SelectContainer.ask,
-            UserDataKey.PRODUCT: callbacks.SelectProduct.ask,
-            UserDataKey.LOCATION: callbacks.SelectLocation.ask,
-        }
-
         action_mapping = {
-            Action.EXIT: callbacks.Home.end,
-            Action.CREATE: callbacks.SelectLocation.ask,
-            Action.FILTER: callbacks.FilteredView.ask,
-            Action.MODIFY: lambda u, c: update_mapping[query_data[UserDataKey.ACTION]](
-                u, c)
+            Action.EXIT: callbacks.Home.stop,
+            Action.CREATE: callbacks.ViewEntry.ask,
+            Action.FILTER: callbacks.FilteredView.ask
         }
 
         return await action_mapping[query_data[UserDataKey.ACTION]](update, context)
@@ -74,14 +60,13 @@ class Home:
     @staticmethod
     async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
-        await update.message.reply_text(COMEBACK_TEXT, reply_markup=ReplyKeyboardRemove())
+        from telegram import ReplyKeyboardRemove
 
-        return ConversationHandler.END
+        util.reset_data(context)
 
-    @staticmethod
-    async def end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text=COMEBACK_TEXT)
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text=SHOWING_TEXT, reply_markup=keyboard)
+        else:
+            await update.message.reply_text(text=COMEBACK_TEXT, reply_markup=ReplyKeyboardRemove())
 
         return ConversationHandler.END

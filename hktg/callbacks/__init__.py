@@ -2,6 +2,7 @@
 from ._home import Home
 from ._filtered_view import FilteredView
 from ._view_entry import ViewEntry
+from ._view_amount import ViewAmount
 from ._select_container import SelectContainer
 from ._select_product import SelectProduct
 from ._select_location import SelectLocation

@@ -22,11 +22,22 @@ class Action(Enum):
     CREATE = 3
     DELETE = 4
     MODIFY = 5
-    VIEW_ENTRY = 5
-    EXIT = 6
+    VIEW_ENTRY = 6
+    VIEW_AMOUNT = 7
+    EXIT = 8
+    BACK = 9
 
-# userdata keys for values
-
+ActionDescriptions = {
+    Action.HOME: "🏠 Додому",
+    Action.FILTER: "🔍 Шукати",
+    Action.CREATE: "➕ Додати",
+    Action.DELETE: "➖ Видалити",
+    Action.MODIFY: "🖊️ Змінити",
+    Action.VIEW_ENTRY: "🖊️ Змінити",
+    Action.VIEW_AMOUNT: "🖊️ Змінити",
+    Action.EXIT: "🚪 Вийти",
+    Action.BACK: "< Назад",
+}
 
 class UserDataKey(Enum):
     ACTION = 1
@@ -38,13 +49,3 @@ class UserDataKey(Enum):
     FIELD_TYPE = 7
     LIMIT = 8
     CURRENT_ID = 9
-
-
-ActionDescriptions = {
-    Action.HOME: "🏠 Додому",
-    Action.FILTER: "🔍 Шукати",
-    Action.CREATE: "➕ Додати",
-    Action.DELETE: "➖ Видалити",
-    Action.MODIFY: "🖊️ Змінити",
-    Action.EXIT: "🚪 Вийти",
-}
