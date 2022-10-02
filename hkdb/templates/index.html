@@ -14,7 +14,6 @@
       <th>Кількість</th> 
       <th>Ємність</th>
       <th>Місце</th>
-      <th>Автор останньої зміни</th>
       <th>Дата останньої зміни</th>
     </tr>
     {% for i, human_date in instances %}
@@ -23,7 +22,6 @@
       <td>{{ i.amount }}</td>
       <td>{{ i.container.symbol }}</td>
       <td>{{ i.location.name }}</td>
-      <td>{{ i.editor }}</td>
       <td>{{ human_date }}</td>
     </tr>
     {% endfor %}
